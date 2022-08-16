@@ -212,7 +212,13 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func AttachDotL(c *Client, aname string, uname string) (*DotLFile, error) {
+type ClientDotLFile struct {
+	Client    *Client
+	Fid       uint32
+	closeOnce sync.Once
+}
+
+func AttachDotL(c *Client, aname string, uname string) (*ClientDotLFile, error) {
 
 	if c.Version() != "9P2000.L" {
 		return nil, fmt.Errorf("cannot attach to a 9P2000.L mount, protocol version %q", c.Version())
@@ -234,7 +240,7 @@ func AttachDotL(c *Client, aname string, uname string) (*DotLFile, error) {
 	}
 	switch fc := fc.(type) {
 	case *Rattach:
-		return &DotLFile{
+		return &ClientDotLFile{
 			Client: c,
 		}, nil
 	case *Rlerror:
@@ -244,13 +250,7 @@ func AttachDotL(c *Client, aname string, uname string) (*DotLFile, error) {
 	}
 }
 
-type DotLFile struct {
-	Client    *Client
-	Fid       uint32
-	closeOnce sync.Once
-}
-
-func (f *DotLFile) Remove() error {
+func (f *ClientDotLFile) Remove() error {
 	var removeErr error
 	f.closeOnce.Do(func() {
 		defer f.Client.ReleaseFid(f.Fid)
@@ -272,7 +272,7 @@ func (f *DotLFile) Remove() error {
 	return removeErr
 }
 
-func (f *DotLFile) Close() error {
+func (f *ClientDotLFile) Close() error {
 	var closeErr error
 	f.closeOnce.Do(func() {
 		defer f.Client.ReleaseFid(f.Fid)

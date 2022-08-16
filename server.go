@@ -58,15 +58,64 @@ func ServeConn(rwc io.ReadWriteCloser, fs Filesystem) {
 	}
 
 	for {
+		// XXX integrate buffer pool.
 		fc, err := ReadFcall(msize, rwc)
 		if err != nil {
 			return
 		}
 		wg.Add(1)
+		// XXX investigate performance of reusing goroutines.
 		go func() {
 			defer wg.Done()
 			resp := fs.Fcall(fc)
 			_ = WriteFcall(resp, msize, rwc)
 		}()
+	}
+}
+
+type DotLFile interface {
+	Remove() error
+	Clunk() error
+}
+
+type DotLFilesystem struct {
+	Msize uint32
+
+	filesLock sync.RWMutex
+	files     map[uint32]DotLFile
+}
+
+func (fs *DotLFilesystem) Fcall(fc Fcall) Fcall {
+	switch fc := fc.(type) {
+	case *Tversion:
+		rVersion := &Rversion{
+			Tagged: fc.Tagged,
+		}
+		if fs.Msize < fc.Msize {
+			rVersion.Msize = fs.Msize
+		} else {
+			rVersion.Msize = fc.Msize
+		}
+		if fc.Version == "9P2000.L" {
+			rVersion.Version = fc.Version
+		} else {
+			rVersion.Version = "unknown"
+		}
+		return rVersion
+	case *Tattach:
+		panic("TODO")
+	default:
+		return &Rlerror{
+			Ecode: 123, // XXX TODO error codes.
+		}
+	}
+}
+
+func (fs *DotLFilesystem) Clunk() {
+	fs.filesLock.RLock()
+	defer fs.filesLock.RUnlock()
+
+	for _, f := range fs.files {
+		f.Clunk()
 	}
 }
