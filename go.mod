@@ -1,4 +1,4 @@
-module github.com/andrewchambers/proto9
+module github.com/andrewchambers/proto9-go
 
 go 1.16
 
