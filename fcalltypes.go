@@ -123,10 +123,11 @@ type Rauth struct {
 
 type Tattach struct {
 	Tagged
+	Fid     uint32
 	Afid    uint32
-	uname   string
-	aname   string
-	n_uname uint32
+	Uname   string
+	Aname   string
+	N_uname uint32
 }
 
 type Rattach struct {
@@ -137,6 +138,11 @@ type Rattach struct {
 type Rlerror struct {
 	Tagged
 	Ecode uint32
+}
+
+func (e *Rlerror) Error() string {
+	// XXX proper conversion
+	return fmt.Sprintf("Error: %d", e.Ecode)
 }
 
 type Tstatfs struct {

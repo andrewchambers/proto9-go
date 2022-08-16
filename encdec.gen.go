@@ -1306,10 +1306,11 @@ func (v *Tagged) Decode(b *bytes.Buffer) error {
 func (v *Tattach) EncodedSize() uint64 {
 	sz := uint64(0)
 	sz += v.Tagged.EncodedSize()
+	sz += 4 // Fid
 	sz += 4 // Afid
-	sz += 2 + uint64(len(v.uname))
-	sz += 2 + uint64(len(v.aname))
-	sz += 4 // n_uname
+	sz += 2 + uint64(len(v.Uname))
+	sz += 2 + uint64(len(v.Aname))
+	sz += 4 // N_uname
 	return sz
 }
 
@@ -1319,19 +1320,23 @@ func (v *Tattach) Encode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
+	err = encodeUint32(b, v.Fid)
+	if err != nil {
+		return err
+	}
 	err = encodeUint32(b, v.Afid)
 	if err != nil {
 		return err
 	}
-	err = encodeString(b, v.uname)
+	err = encodeString(b, v.Uname)
 	if err != nil {
 		return err
 	}
-	err = encodeString(b, v.aname)
+	err = encodeString(b, v.Aname)
 	if err != nil {
 		return err
 	}
-	err = encodeUint32(b, v.n_uname)
+	err = encodeUint32(b, v.N_uname)
 	if err != nil {
 		return err
 	}
@@ -1344,19 +1349,23 @@ func (v *Tattach) Decode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
+	v.Fid, err = decodeUint32(b)
+	if err != nil {
+		return err
+	}
 	v.Afid, err = decodeUint32(b)
 	if err != nil {
 		return err
 	}
-	v.uname, err = decodeString(b)
+	v.Uname, err = decodeString(b)
 	if err != nil {
 		return err
 	}
-	v.aname, err = decodeString(b)
+	v.Aname, err = decodeString(b)
 	if err != nil {
 		return err
 	}
-	v.n_uname, err = decodeUint32(b)
+	v.N_uname, err = decodeUint32(b)
 	if err != nil {
 		return err
 	}

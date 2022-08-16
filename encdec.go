@@ -89,27 +89,46 @@ func encodeQids(b *bytes.Buffer, v []Qid) error {
 }
 
 func decodeByte(b *bytes.Buffer) (byte, error) {
-	return 0, errors.New("todo")
+	return b.ReadByte()
 }
 
 func decodeUint8(b *bytes.Buffer) (uint8, error) {
-	return 0, errors.New("todo")
+	return b.ReadByte()
 }
 
 func decodeUint16(b *bytes.Buffer) (uint16, error) {
-	return 0, errors.New("todo")
+	buf := [2]byte{}
+	_, err := b.Read(buf[:])
+	if err != nil {
+		return 0, err
+	}
+	return uint16(buf[0]) | (uint16(buf[1]) << 8), nil
 }
 
 func decodeUint32(b *bytes.Buffer) (uint32, error) {
-	return 0, errors.New("todo")
+	buf := [4]byte{}
+	_, err := b.Read(buf[:])
+	if err != nil {
+		return 0, err
+	}
+	return uint32(buf[0]) | (uint32(buf[1]) << 8) | (uint32(buf[2]) << 16) | (uint32(buf[3]) << 24), nil
 }
 
 func decodeUint64(b *bytes.Buffer) (uint64, error) {
-	return 0, errors.New("todo")
+	buf := [8]byte{}
+	_, err := b.Read(buf[:])
+	if err != nil {
+		return 0, err
+	}
+	return uint64(buf[0]) | (uint64(buf[1]) << 8) | (uint64(buf[2]) << 16) | (uint64(buf[3]) << 24) | (uint64(buf[4]) << 32) | (uint64(buf[5]) << 40) | (uint64(buf[6]) << 48) | (uint64(buf[7]) << 56), nil
 }
 
 func decodeString(b *bytes.Buffer) (string, error) {
-	return "", errors.New("todo")
+	l, err := decodeUint16(b)
+	if err != nil {
+		return "", err
+	}
+	return string(b.Next(int(l))), nil
 }
 
 func decodeByteSlice(b *bytes.Buffer) ([]byte, error) {
@@ -124,5 +143,18 @@ func decodeByteSlice(b *bytes.Buffer) ([]byte, error) {
 }
 
 func decodeQids(b *bytes.Buffer) ([]Qid, error) {
-	return nil, errors.New("todo")
+	l, err := decodeUint16(b)
+	if err != nil {
+		return nil, err
+	}
+	qids := []Qid{}
+	qid := Qid{}
+	for i := 0; i < int(l); i++ {
+		err = qid.Decode(b)
+		if err != nil {
+			return nil, err
+		}
+		qids = append(qids, qid)
+	}
+	return qids, nil
 }
