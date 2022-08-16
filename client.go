@@ -235,7 +235,7 @@ func AttachDotL(c *Client, aname string, uname string) (*DotLFile, error) {
 	switch fc := fc.(type) {
 	case *Rattach:
 		return &DotLFile{
-			c: c,
+			Client: c,
 		}, nil
 	case *Rlerror:
 		return nil, fc
@@ -245,26 +245,51 @@ func AttachDotL(c *Client, aname string, uname string) (*DotLFile, error) {
 }
 
 type DotLFile struct {
-	c   *Client
-	fid uint32
+	Client    *Client
+	Fid       uint32
+	closeOnce sync.Once
+}
+
+func (f *DotLFile) Remove() error {
+	var removeErr error
+	f.closeOnce.Do(func() {
+		defer f.Client.ReleaseFid(f.Fid)
+		fc, err := f.Client.Fcall(&Tremove{
+			Fid: f.Fid,
+		})
+		if err != nil {
+			removeErr = err
+			return
+		}
+		switch fc := fc.(type) {
+		case *Rremove:
+		case *Rlerror:
+			removeErr = fc
+		default:
+			removeErr = fmt.Errorf("protocol error, expected Rremove")
+		}
+	})
+	return removeErr
 }
 
 func (f *DotLFile) Close() error {
-	defer f.c.ReleaseFid(f.fid)
-
-	fc, err := f.c.Fcall(&Tclunk{
-		Fid: f.fid,
+	var closeErr error
+	f.closeOnce.Do(func() {
+		defer f.Client.ReleaseFid(f.Fid)
+		fc, err := f.Client.Fcall(&Tclunk{
+			Fid: f.Fid,
+		})
+		if err != nil {
+			closeErr = err
+			return
+		}
+		switch fc := fc.(type) {
+		case *Rclunk:
+		case *Rlerror:
+			closeErr = fc
+		default:
+			closeErr = fmt.Errorf("protocol error, expected Rclunk")
+		}
 	})
-	if err != nil {
-		return err
-	}
-
-	switch fc := fc.(type) {
-	case *Rclunk:
-		return nil
-	case *Rlerror:
-		return fc
-	default:
-		return fmt.Errorf("protocol error, expected Rclunk")
-	}
+	return closeErr
 }

@@ -9,7 +9,8 @@ import (
 )
 
 var (
-	ErrValueTooLong = errors.New("value too large for 9p message")
+	ErrValueTooLong   = errors.New("value too large for 9p message")
+	ErrDecodingFailed = errors.New("decoding failed, short or corrupt message")
 )
 
 func encodeByte(b *bytes.Buffer, v byte) error {
@@ -56,7 +57,7 @@ func encodeString(b *bytes.Buffer, v string) error {
 	if len(v) > 0xffff {
 		return ErrValueTooLong
 	}
-	err := encodeUint32(b, uint32(len(v)))
+	err := encodeUint16(b, uint16(len(v)))
 	if err != nil {
 		return err
 	}
@@ -68,6 +69,11 @@ func encodeByteSlice(b *bytes.Buffer, v []byte) error {
 	if len(v) > 0xffffffff {
 		return ErrValueTooLong
 	}
+	err := encodeUint32(b, uint32(len(v)))
+	if err != nil {
+		return err
+	}
+	_, err = b.Write(v)
 	return nil
 }
 
@@ -75,7 +81,7 @@ func encodeQids(b *bytes.Buffer, v []Qid) error {
 	if len(v) > 13 {
 		return ErrValueTooLong
 	}
-	err := encodeUint32(b, uint32(len(v)))
+	err := encodeUint16(b, uint16(len(v)))
 	if err != nil {
 		return err
 	}
@@ -89,18 +95,26 @@ func encodeQids(b *bytes.Buffer, v []Qid) error {
 }
 
 func decodeByte(b *bytes.Buffer) (byte, error) {
-	return b.ReadByte()
+	v, err := b.ReadByte()
+	if err != nil {
+		return v, ErrDecodingFailed
+	}
+	return v, nil
 }
 
 func decodeUint8(b *bytes.Buffer) (uint8, error) {
-	return b.ReadByte()
+	v, err := b.ReadByte()
+	if err != nil {
+		return v, ErrDecodingFailed
+	}
+	return v, nil
 }
 
 func decodeUint16(b *bytes.Buffer) (uint16, error) {
 	buf := [2]byte{}
 	_, err := b.Read(buf[:])
 	if err != nil {
-		return 0, err
+		return 0, ErrDecodingFailed
 	}
 	return uint16(buf[0]) | (uint16(buf[1]) << 8), nil
 }
@@ -109,7 +123,7 @@ func decodeUint32(b *bytes.Buffer) (uint32, error) {
 	buf := [4]byte{}
 	_, err := b.Read(buf[:])
 	if err != nil {
-		return 0, err
+		return 0, ErrDecodingFailed
 	}
 	return uint32(buf[0]) | (uint32(buf[1]) << 8) | (uint32(buf[2]) << 16) | (uint32(buf[3]) << 24), nil
 }
@@ -118,7 +132,7 @@ func decodeUint64(b *bytes.Buffer) (uint64, error) {
 	buf := [8]byte{}
 	_, err := b.Read(buf[:])
 	if err != nil {
-		return 0, err
+		return 0, ErrDecodingFailed
 	}
 	return uint64(buf[0]) | (uint64(buf[1]) << 8) | (uint64(buf[2]) << 16) | (uint64(buf[3]) << 24) | (uint64(buf[4]) << 32) | (uint64(buf[5]) << 40) | (uint64(buf[6]) << 48) | (uint64(buf[7]) << 56), nil
 }
@@ -126,9 +140,13 @@ func decodeUint64(b *bytes.Buffer) (uint64, error) {
 func decodeString(b *bytes.Buffer) (string, error) {
 	l, err := decodeUint16(b)
 	if err != nil {
-		return "", err
+		return "", ErrDecodingFailed
 	}
-	return string(b.Next(int(l))), nil
+	buf := b.Next(int(l))
+	if len(buf) != int(l) {
+		return "", ErrDecodingFailed
+	}
+	return string(buf), nil
 }
 
 func decodeByteSlice(b *bytes.Buffer) ([]byte, error) {
@@ -137,9 +155,13 @@ func decodeByteSlice(b *bytes.Buffer) ([]byte, error) {
 		return nil, err
 	}
 	// XXX Technically this is not allowed because the buffer documentation
-	// says the buffer is no longer valid on the next call to read... however
+	// says the buffer is no longer valid on the next call to Read... however
 	// the implementation doesn't actually invalidate it and we avoid the copy.
-	return b.Next(int(l)), nil
+	buf := b.Next(int(l))
+	if len(buf) != int(l) {
+		return nil, ErrDecodingFailed
+	}
+	return buf, nil
 }
 
 func decodeQids(b *bytes.Buffer) ([]Qid, error) {

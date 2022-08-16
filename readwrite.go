@@ -39,10 +39,26 @@ func WriteFcall(fc Fcall, msize uint32, w io.Writer) error {
 
 func ReadFcallInto(msize uint32, r io.Reader, b *bytes.Buffer) (Fcall, error) {
 
-	hdr := [5]byte{}
-	_, err := io.ReadFull(r, hdr[:])
-	if err != nil {
-		return nil, err
+	lr := io.LimitedReader{
+		R: r,
+		N: 5,
+	}
+
+	b.Reset()
+	if uint32(b.Cap()) < msize {
+		b.Grow(int(msize - uint32(b.Cap())))
+	}
+
+	nRead, err := b.ReadFrom(&lr)
+	if nRead != 5 {
+		return nil, io.EOF
+	}
+
+	hdr := b.Next(5)
+
+	sz := uint32(hdr[0]) | (uint32(hdr[1]) << 8) | (uint32(hdr[2]) << 16) | (uint32(hdr[3]) << 24)
+	if sz <= 5 || sz > msize {
+		return nil, errors.New("message size is outside valid range")
 	}
 
 	fc, err := FcallFromKind(hdr[4])
@@ -50,24 +66,10 @@ func ReadFcallInto(msize uint32, r io.Reader, b *bytes.Buffer) (Fcall, error) {
 		return nil, err
 	}
 
-	sz := uint32(hdr[0]) | (uint32(hdr[1]) << 8) | (uint32(hdr[2]) << 16) | (uint32(hdr[3]) << 24)
-
-	if sz <= 5 || sz > msize {
-		return nil, errors.New("message size is outside valid range")
-	}
-
 	toRead := int64(sz - 5)
-	lr := io.LimitedReader{
-		R: r,
-		N: int64(toRead),
-	}
+	lr.N = toRead
 
-	b.Reset()
-	if uint32(b.Cap()) < (msize - 5) {
-		b.Grow(int((msize - 5) - uint32(b.Cap())))
-	}
-
-	nRead, err := b.ReadFrom(&lr)
+	nRead, err = b.ReadFrom(&lr)
 	if nRead != toRead {
 		if err == nil {
 			err = io.EOF
