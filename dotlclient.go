@@ -182,6 +182,23 @@ func (f *ClientDotLFile) Open(flags uint32) error {
 	}
 }
 
+func (f *ClientDotLFile) Fsync() error {
+	fc, err := f.Client.Fcall(&Tfsync{
+		Fid: f.Fid,
+	})
+	if err != nil {
+		return err
+	}
+	switch fc := fc.(type) {
+	case *Rfsync:
+		return nil
+	case *Rlerror:
+		return fc
+	default:
+		return errors.New("protocol error, expected Rfsync")
+	}
+}
+
 func (f *ClientDotLFile) Read(offset uint64, buf []byte) (int, error) {
 	if uint32(len(buf)) > (f.Client.Msize() - IOHDRSZ) {
 		buf = buf[:int(f.Client.Msize()-IOHDRSZ)]
@@ -304,5 +321,42 @@ func (f *ClientDotLFile) Rename(dir *ClientDotLFile, name string) error {
 		return fc
 	default:
 		return errors.New("protocol error, expected Rrename")
+	}
+}
+
+func (f *ClientDotLFile) Mkdir(name string, mode uint32, gid uint32) (Qid, error) {
+	fc, err := f.Client.Fcall(&Tmkdir{
+		Dfid: f.Fid,
+		Name: name,
+		Mode: mode,
+		Gid:  gid,
+	})
+	if err != nil {
+		return Qid{}, err
+	}
+	switch fc := fc.(type) {
+	case *Rmkdir:
+		return fc.Qid, nil
+	case *Rlerror:
+		return Qid{}, fc
+	default:
+		return Qid{}, errors.New("protocol error, expected Rmkdir")
+	}
+}
+
+func (f *ClientDotLFile) Statfs() (LStatfs, error) {
+	fc, err := f.Client.Fcall(&Tstatfs{
+		Fid: f.Fid,
+	})
+	if err != nil {
+		return LStatfs{}, err
+	}
+	switch fc := fc.(type) {
+	case *Rstatfs:
+		return fc.LStatfs, nil
+	case *Rlerror:
+		return LStatfs{}, fc
+	default:
+		return LStatfs{}, errors.New("protocol error, expected Rstatfs")
 	}
 }

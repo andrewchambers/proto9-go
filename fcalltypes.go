@@ -143,8 +143,7 @@ type Tstatfs struct {
 	Fid uint32
 }
 
-type Rstatfs struct {
-	Tagged
+type LStatfs struct {
 	Typ     uint32
 	Bsize   uint32
 	Blocks  uint64
@@ -154,6 +153,11 @@ type Rstatfs struct {
 	Ffree   uint64
 	Fsid    uint64
 	Namelen uint32
+}
+
+type Rstatfs struct {
+	Tagged
+	LStatfs
 }
 
 type Tlopen struct {
@@ -388,7 +392,6 @@ type Rlink struct {
 type Tmkdir struct {
 	Tagged
 	Dfid uint32
-	Fid  uint32
 	Name string
 	Mode uint32
 	Gid  uint32
@@ -401,10 +404,10 @@ type Rmkdir struct {
 
 type Trenameat struct {
 	Tagged
-	OldDirFid uint32
-	OldName   string
-	NewDirFid uint32
-	NewName   string
+	OldDfid uint32
+	OldName string
+	NewDfid uint32
+	NewName string
 }
 
 type Rrenameat struct {
@@ -413,9 +416,9 @@ type Rrenameat struct {
 
 type Tunlinkat struct {
 	Tagged
-	DirFid uint32
-	Name   string
-	Flags  uint32
+	Dfid  uint32
+	Name  string
+	Flags uint32
 }
 
 type Runlinkat struct {

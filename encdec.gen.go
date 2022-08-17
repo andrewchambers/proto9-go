@@ -2015,7 +2015,6 @@ func (v *Tmkdir) EncodedSize() uint64 {
 	sz := uint64(0)
 	sz += v.Tagged.EncodedSize()
 	sz += 4 // Dfid
-	sz += 4 // Fid
 	sz += 2 + uint64(len(v.Name))
 	sz += 4 // Mode
 	sz += 4 // Gid
@@ -2029,10 +2028,6 @@ func (v *Tmkdir) Encode(b *bytes.Buffer) error {
 		return err
 	}
 	err = encodeUint32(b, v.Dfid)
-	if err != nil {
-		return err
-	}
-	err = encodeUint32(b, v.Fid)
 	if err != nil {
 		return err
 	}
@@ -2058,10 +2053,6 @@ func (v *Tmkdir) Decode(b *bytes.Buffer) error {
 		return err
 	}
 	v.Dfid, err = decodeUint32(b)
-	if err != nil {
-		return err
-	}
-	v.Fid, err = decodeUint32(b)
 	if err != nil {
 		return err
 	}
@@ -2371,9 +2362,9 @@ func (v *Trename) Decode(b *bytes.Buffer) error {
 func (v *Trenameat) EncodedSize() uint64 {
 	sz := uint64(0)
 	sz += v.Tagged.EncodedSize()
-	sz += 4 // OldDirFid
+	sz += 4 // OldDfid
 	sz += 2 + uint64(len(v.OldName))
-	sz += 4 // NewDirFid
+	sz += 4 // NewDfid
 	sz += 2 + uint64(len(v.NewName))
 	return sz
 }
@@ -2384,7 +2375,7 @@ func (v *Trenameat) Encode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	err = encodeUint32(b, v.OldDirFid)
+	err = encodeUint32(b, v.OldDfid)
 	if err != nil {
 		return err
 	}
@@ -2392,7 +2383,7 @@ func (v *Trenameat) Encode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	err = encodeUint32(b, v.NewDirFid)
+	err = encodeUint32(b, v.NewDfid)
 	if err != nil {
 		return err
 	}
@@ -2409,7 +2400,7 @@ func (v *Trenameat) Decode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	v.OldDirFid, err = decodeUint32(b)
+	v.OldDfid, err = decodeUint32(b)
 	if err != nil {
 		return err
 	}
@@ -2417,7 +2408,7 @@ func (v *Trenameat) Decode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	v.NewDirFid, err = decodeUint32(b)
+	v.NewDfid, err = decodeUint32(b)
 	if err != nil {
 		return err
 	}
@@ -2566,7 +2557,7 @@ func (v *Tsymlink) Decode(b *bytes.Buffer) error {
 func (v *Tunlinkat) EncodedSize() uint64 {
 	sz := uint64(0)
 	sz += v.Tagged.EncodedSize()
-	sz += 4 // DirFid
+	sz += 4 // Dfid
 	sz += 2 + uint64(len(v.Name))
 	sz += 4 // Flags
 	return sz
@@ -2578,7 +2569,7 @@ func (v *Tunlinkat) Encode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	err = encodeUint32(b, v.DirFid)
+	err = encodeUint32(b, v.Dfid)
 	if err != nil {
 		return err
 	}
@@ -2599,7 +2590,7 @@ func (v *Tunlinkat) Decode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	v.DirFid, err = decodeUint32(b)
+	v.Dfid, err = decodeUint32(b)
 	if err != nil {
 		return err
 	}

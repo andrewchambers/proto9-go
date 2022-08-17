@@ -505,3 +505,38 @@ func TestDotlRename(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestDotlMkdir(t *testing.T) {
+	client, server := NewTestDotLClient(t)
+
+	f, err := AttachDotL(client, server.Aname, server.Uname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Clunk()
+
+	_, err = f.Mkdir("x", 0o777, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = os.Stat(server.ServeDir + "/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDotlStatfs(t *testing.T) {
+	client, server := NewTestDotLClient(t)
+
+	f, err := AttachDotL(client, server.Aname, server.Uname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Clunk()
+
+	_, err = f.Statfs()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
