@@ -55,6 +55,297 @@ func (v *DirEnt) Decode(b *bytes.Buffer) error {
 	return nil
 }
 
+func (v *LAttr) EncodedSize() uint64 {
+	sz := uint64(0)
+	sz += 8 // Valid
+	sz += v.Qid.EncodedSize()
+	sz += 4 // Mode
+	sz += 4 // Uid
+	sz += 4 // Gid
+	sz += 8 // Nlink
+	sz += 8 // Rdev
+	sz += 8 // Size
+	sz += 8 // Blksize
+	sz += 8 // Blocks
+	sz += 8 // AtimeSec
+	sz += 8 // AtimeNsec
+	sz += 8 // MtimeSec
+	sz += 8 // MtimeSsec
+	sz += 8 // CtimeSec
+	sz += 8 // CtimeNsec
+	sz += 8 // BtimeSec
+	sz += 8 // BtimeNsec
+	sz += 8 // Gen
+	sz += 8 // DataVersion
+	return sz
+}
+
+func (v *LAttr) Encode(b *bytes.Buffer) error {
+	var err error
+	err = encodeUint64(b, v.Valid)
+	if err != nil {
+		return err
+	}
+	err = v.Qid.Encode(b)
+	if err != nil {
+		return err
+	}
+	err = encodeUint32(b, v.Mode)
+	if err != nil {
+		return err
+	}
+	err = encodeUint32(b, v.Uid)
+	if err != nil {
+		return err
+	}
+	err = encodeUint32(b, v.Gid)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.Nlink)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.Rdev)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.Size)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.Blksize)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.Blocks)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.AtimeSec)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.AtimeNsec)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.MtimeSec)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.MtimeSsec)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.CtimeSec)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.CtimeNsec)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.BtimeSec)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.BtimeNsec)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.Gen)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.DataVersion)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (v *LAttr) Decode(b *bytes.Buffer) error {
+	var err error
+	v.Valid, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	err = v.Qid.Decode(b)
+	if err != nil {
+		return err
+	}
+	v.Mode, err = decodeUint32(b)
+	if err != nil {
+		return err
+	}
+	v.Uid, err = decodeUint32(b)
+	if err != nil {
+		return err
+	}
+	v.Gid, err = decodeUint32(b)
+	if err != nil {
+		return err
+	}
+	v.Nlink, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.Rdev, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.Size, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.Blksize, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.Blocks, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.AtimeSec, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.AtimeNsec, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.MtimeSec, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.MtimeSsec, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.CtimeSec, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.CtimeNsec, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.BtimeSec, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.BtimeNsec, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.Gen, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.DataVersion, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (v *LSetAttr) EncodedSize() uint64 {
+	sz := uint64(0)
+	sz += 4 // Valid
+	sz += 4 // Mode
+	sz += 4 // Uid
+	sz += 4 // Gid
+	sz += 8 // Size
+	sz += 8 // AtimeSec
+	sz += 8 // AtimeNsec
+	sz += 8 // MtimeSec
+	sz += 8 // MtimeSsec
+	return sz
+}
+
+func (v *LSetAttr) Encode(b *bytes.Buffer) error {
+	var err error
+	err = encodeUint32(b, v.Valid)
+	if err != nil {
+		return err
+	}
+	err = encodeUint32(b, v.Mode)
+	if err != nil {
+		return err
+	}
+	err = encodeUint32(b, v.Uid)
+	if err != nil {
+		return err
+	}
+	err = encodeUint32(b, v.Gid)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.Size)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.AtimeSec)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.AtimeNsec)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.MtimeSec)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.MtimeSsec)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (v *LSetAttr) Decode(b *bytes.Buffer) error {
+	var err error
+	v.Valid, err = decodeUint32(b)
+	if err != nil {
+		return err
+	}
+	v.Mode, err = decodeUint32(b)
+	if err != nil {
+		return err
+	}
+	v.Uid, err = decodeUint32(b)
+	if err != nil {
+		return err
+	}
+	v.Gid, err = decodeUint32(b)
+	if err != nil {
+		return err
+	}
+	v.Size, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.AtimeSec, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.AtimeNsec, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.MtimeSec, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.MtimeSsec, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (v *Qid) EncodedSize() uint64 {
 	sz := uint64(0)
 	sz += 1 // Typ
@@ -238,26 +529,7 @@ func (v *Rfsync) Decode(b *bytes.Buffer) error {
 func (v *Rgetattr) EncodedSize() uint64 {
 	sz := uint64(0)
 	sz += v.Tagged.EncodedSize()
-	sz += 8 // Valid
-	sz += v.Qid.EncodedSize()
-	sz += 4 // Mode
-	sz += 4 // Uid
-	sz += 4 // Gid
-	sz += 8 // Nlink
-	sz += 8 // Rdev
-	sz += 8 // Size
-	sz += 8 // Blksize
-	sz += 8 // Blocks
-	sz += 8 // AtimeSec
-	sz += 8 // AtimeNsec
-	sz += 8 // MtimeSec
-	sz += 8 // MtimeSsec
-	sz += 8 // CtimeSec
-	sz += 8 // CtimeNsec
-	sz += 8 // BtimeSec
-	sz += 8 // BtimeNsec
-	sz += 8 // Gen
-	sz += 8 // DataVersion
+	sz += v.LAttr.EncodedSize()
 	return sz
 }
 
@@ -267,83 +539,7 @@ func (v *Rgetattr) Encode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	err = encodeUint64(b, v.Valid)
-	if err != nil {
-		return err
-	}
-	err = v.Qid.Encode(b)
-	if err != nil {
-		return err
-	}
-	err = encodeUint32(b, v.Mode)
-	if err != nil {
-		return err
-	}
-	err = encodeUint32(b, v.Uid)
-	if err != nil {
-		return err
-	}
-	err = encodeUint32(b, v.Gid)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.Nlink)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.Rdev)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.Size)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.Blksize)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.Blocks)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.AtimeSec)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.AtimeNsec)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.MtimeSec)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.MtimeSsec)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.CtimeSec)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.CtimeNsec)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.BtimeSec)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.BtimeNsec)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.Gen)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.DataVersion)
+	err = v.LAttr.Encode(b)
 	if err != nil {
 		return err
 	}
@@ -356,83 +552,7 @@ func (v *Rgetattr) Decode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	v.Valid, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	err = v.Qid.Decode(b)
-	if err != nil {
-		return err
-	}
-	v.Mode, err = decodeUint32(b)
-	if err != nil {
-		return err
-	}
-	v.Uid, err = decodeUint32(b)
-	if err != nil {
-		return err
-	}
-	v.Gid, err = decodeUint32(b)
-	if err != nil {
-		return err
-	}
-	v.Nlink, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.Rdev, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.Size, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.Blksize, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.Blocks, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.AtimeSec, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.AtimeNsec, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.MtimeSec, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.MtimeSsec, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.CtimeSec, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.CtimeNsec, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.BtimeSec, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.BtimeNsec, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.Gen, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.DataVersion, err = decodeUint64(b)
+	err = v.LAttr.Decode(b)
 	if err != nil {
 		return err
 	}
@@ -1525,6 +1645,7 @@ func (v *Tfsync) Decode(b *bytes.Buffer) error {
 func (v *Tgetattr) EncodedSize() uint64 {
 	sz := uint64(0)
 	sz += v.Tagged.EncodedSize()
+	sz += 4 // Fid
 	sz += 8 // Mask
 	return sz
 }
@@ -1532,6 +1653,10 @@ func (v *Tgetattr) EncodedSize() uint64 {
 func (v *Tgetattr) Encode(b *bytes.Buffer) error {
 	var err error
 	err = v.Tagged.Encode(b)
+	if err != nil {
+		return err
+	}
+	err = encodeUint32(b, v.Fid)
 	if err != nil {
 		return err
 	}
@@ -1545,6 +1670,10 @@ func (v *Tgetattr) Encode(b *bytes.Buffer) error {
 func (v *Tgetattr) Decode(b *bytes.Buffer) error {
 	var err error
 	err = v.Tagged.Decode(b)
+	if err != nil {
+		return err
+	}
+	v.Fid, err = decodeUint32(b)
 	if err != nil {
 		return err
 	}
@@ -2303,15 +2432,7 @@ func (v *Tsetattr) EncodedSize() uint64 {
 	sz := uint64(0)
 	sz += v.Tagged.EncodedSize()
 	sz += 4 // Fid
-	sz += 4 // Valid
-	sz += 4 // Mode
-	sz += 4 // Uid
-	sz += 4 // Gid
-	sz += 8 // Size
-	sz += 8 // AtimeSec
-	sz += 8 // AtimeNsec
-	sz += 8 // MtimeSec
-	sz += 8 // MtimeSsec
+	sz += v.LSetAttr.EncodedSize()
 	return sz
 }
 
@@ -2325,39 +2446,7 @@ func (v *Tsetattr) Encode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	err = encodeUint32(b, v.Valid)
-	if err != nil {
-		return err
-	}
-	err = encodeUint32(b, v.Mode)
-	if err != nil {
-		return err
-	}
-	err = encodeUint32(b, v.Uid)
-	if err != nil {
-		return err
-	}
-	err = encodeUint32(b, v.Gid)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.Size)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.AtimeSec)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.AtimeNsec)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.MtimeSec)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.MtimeSsec)
+	err = v.LSetAttr.Encode(b)
 	if err != nil {
 		return err
 	}
@@ -2374,39 +2463,7 @@ func (v *Tsetattr) Decode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	v.Valid, err = decodeUint32(b)
-	if err != nil {
-		return err
-	}
-	v.Mode, err = decodeUint32(b)
-	if err != nil {
-		return err
-	}
-	v.Uid, err = decodeUint32(b)
-	if err != nil {
-		return err
-	}
-	v.Gid, err = decodeUint32(b)
-	if err != nil {
-		return err
-	}
-	v.Size, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.AtimeSec, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.AtimeNsec, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.MtimeSec, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.MtimeSsec, err = decodeUint64(b)
+	err = v.LSetAttr.Decode(b)
 	if err != nil {
 		return err
 	}

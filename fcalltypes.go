@@ -233,11 +233,11 @@ type Rreadlink struct {
 
 type Tgetattr struct {
 	Tagged
+	Fid  uint32
 	Mask uint64
 }
 
-type Rgetattr struct {
-	Tagged
+type LAttr struct {
 	Valid       uint64
 	Qid         Qid
 	Mode        uint32
@@ -260,9 +260,12 @@ type Rgetattr struct {
 	DataVersion uint64
 }
 
-type Tsetattr struct {
+type Rgetattr struct {
 	Tagged
-	Fid       uint32
+	LAttr
+}
+
+type LSetAttr struct {
 	Valid     uint32
 	Mode      uint32
 	Uid       uint32
@@ -272,6 +275,12 @@ type Tsetattr struct {
 	AtimeNsec uint64
 	MtimeSec  uint64
 	MtimeSsec uint64
+}
+
+type Tsetattr struct {
+	Tagged
+	Fid uint32
+	LSetAttr
 }
 
 type Rsetattr struct {

@@ -207,9 +207,7 @@ func TestDotlEmptyWalk(t *testing.T) {
 func TestDotlWalkOne(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
-	dir := server.ServeDir
-
-	err := os.MkdirAll(dir+"/1/2/3", 0o777)
+	err := os.MkdirAll(server.ServeDir+"/1/2/3", 0o777)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,9 +231,7 @@ func TestDotlWalkOne(t *testing.T) {
 func TestDotlWalkMulti(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
-	dir := server.ServeDir
-
-	err := os.MkdirAll(dir+"/1/2/3/4/5/6/7/8/9/10/11/12/13/14", 0o777)
+	err := os.MkdirAll(server.ServeDir+"/1/2/3/4/5/6/7/8/9/10/11/12/13/14", 0o777)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,9 +264,7 @@ func TestDotlWalkMulti(t *testing.T) {
 func TestDotlShortWalk(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
-	dir := server.ServeDir
-
-	err := os.MkdirAll(dir+"/1/2/3/4", 0o777)
+	err := os.MkdirAll(server.ServeDir+"/1/2/3/4", 0o777)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,9 +291,7 @@ func TestDotlShortWalk(t *testing.T) {
 func TestDotlRemove(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
-	dir := server.ServeDir
-
-	err := os.Mkdir(dir+"/x", 0o777)
+	err := os.Mkdir(server.ServeDir+"/x", 0o777)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,7 +310,7 @@ func TestDotlRemove(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = os.Stat(dir + "/x")
+	_, err = os.Stat(server.ServeDir + "/x")
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatal(err)
 	}
@@ -327,8 +319,6 @@ func TestDotlRemove(t *testing.T) {
 func TestDotlRead(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
-	dir := server.ServeDir
-
 	expected, err := io.ReadAll(
 		&io.LimitedReader{R: rand.Reader, N: int64(2 * client.Msize())},
 	)
@@ -336,7 +326,7 @@ func TestDotlRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = os.WriteFile(dir+"/x", expected, 0o777)
+	err = os.WriteFile(server.ServeDir+"/x", expected, 0o777)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -375,9 +365,7 @@ func TestDotlRead(t *testing.T) {
 func TestDotlWrite(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
-	dir := server.ServeDir
-
-	err := os.WriteFile(dir+"/x", []byte("hello"), 0o777)
+	err := os.WriteFile(server.ServeDir+"/x", []byte("hello"), 0o777)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,12 +402,63 @@ func TestDotlWrite(t *testing.T) {
 		t.Fatalf("unexpected write count %d", n)
 	}
 
-	buf, err := os.ReadFile(dir + "/x")
+	buf, err := os.ReadFile(server.ServeDir + "/x")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(buf[:n], expected[:n]) {
 		t.Fatalf("%v\n!=\n%v", buf[:n], expected[:n])
+	}
+}
+
+func TestDotlCreate(t *testing.T) {
+	client, server := NewTestDotLClient(t)
+
+	f, err := AttachDotL(client, server.Aname, server.Uname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Clunk()
+	_, _, err = f.Create("x", 0, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = os.Stat(server.ServeDir + "/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDotlGetAttr(t *testing.T) {
+	client, server := NewTestDotLClient(t)
+
+	f, err := AttachDotL(client, server.Aname, server.Uname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Clunk()
+
+	_, err = f.GetAttr(L_GETATTR_ALL)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDotlSetAttr(t *testing.T) {
+	client, server := NewTestDotLClient(t)
+
+	f, err := AttachDotL(client, server.Aname, server.Uname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Clunk()
+
+	err = f.SetAttr(LSetAttr{
+		Valid: L_SETATTR_MODE,
+		Mode:  0o777,
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

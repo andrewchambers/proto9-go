@@ -230,3 +230,60 @@ func (f *ClientDotLFile) Write(offset uint64, buf []byte) (int, error) {
 		return 0, errors.New("protocol error, expected Rwrite")
 	}
 }
+
+func (f *ClientDotLFile) Create(name string, flags uint32, mode uint32, gid uint32) (Qid, uint32, error) {
+	fc, err := f.Client.Fcall(&Tlcreate{
+		Fid:   f.Fid,
+		Name:  name,
+		Flags: flags,
+		Mode:  mode,
+		Gid:   gid,
+	})
+	if err != nil {
+		return Qid{}, 0, err
+	}
+	switch fc := fc.(type) {
+	case *Rlcreate:
+		return fc.Qid, fc.Iounit, nil
+	case *Rlerror:
+		return Qid{}, 0, fc
+	default:
+		return Qid{}, 0, errors.New("protocol error, expected Rlcreate")
+	}
+}
+
+func (f *ClientDotLFile) GetAttr(mask uint64) (LAttr, error) {
+	fc, err := f.Client.Fcall(&Tgetattr{
+		Fid:  f.Fid,
+		Mask: mask,
+	})
+	if err != nil {
+		return LAttr{}, err
+	}
+	switch fc := fc.(type) {
+	case *Rgetattr:
+		return fc.LAttr, nil
+	case *Rlerror:
+		return LAttr{}, fc
+	default:
+		return LAttr{}, errors.New("protocol error, expected Rgetattr")
+	}
+}
+
+func (f *ClientDotLFile) SetAttr(attr LSetAttr) error {
+	fc, err := f.Client.Fcall(&Tsetattr{
+		Fid:      f.Fid,
+		LSetAttr: attr,
+	})
+	if err != nil {
+		return err
+	}
+	switch fc := fc.(type) {
+	case *Rsetattr:
+		return nil
+	case *Rlerror:
+		return fc
+	default:
+		return errors.New("protocol error, expected Rsetattr")
+	}
+}
