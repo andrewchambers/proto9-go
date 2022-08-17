@@ -329,50 +329,6 @@ func TestDotlRead(t *testing.T) {
 
 	dir := server.ServeDir
 
-	expected := []byte("hello")
-	err := os.WriteFile(dir+"/x", expected, 0o777)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	f, err := AttachDotL(client, server.Aname, server.Uname)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Clunk()
-
-	wf, _, err := f.Walk([]string{"x"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer wf.Clunk()
-
-	err = wf.Open(L_O_RDONLY)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	buf := make([]byte, 1024, 1024)
-	n, err := wf.Read(0, buf)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 5 {
-		t.Fatalf("unexpected count read %d", n)
-	}
-
-	buf = buf[:n]
-
-	if !reflect.DeepEqual(buf, expected) {
-		t.Fatalf("%v\n!=\n%v", buf, expected)
-	}
-}
-
-func TestDotlReadLargerThanMsize(t *testing.T) {
-	client, server := NewTestDotLClient(t)
-
-	dir := server.ServeDir
-
 	expected, err := io.ReadAll(
 		&io.LimitedReader{R: rand.Reader, N: int64(2 * client.Msize())},
 	)
@@ -408,7 +364,59 @@ func TestDotlReadLargerThanMsize(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n != int(client.Msize()-IOHDRSZ) {
-		t.Fatalf("unexpected count read %d", n)
+		t.Fatalf("unexpected read count %d", n)
+	}
+
+	if !reflect.DeepEqual(buf[:n], expected[:n]) {
+		t.Fatalf("%v\n!=\n%v", buf[:n], expected[:n])
+	}
+}
+
+func TestDotlWrite(t *testing.T) {
+	client, server := NewTestDotLClient(t)
+
+	dir := server.ServeDir
+
+	err := os.WriteFile(dir+"/x", []byte("hello"), 0o777)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := AttachDotL(client, server.Aname, server.Uname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Clunk()
+
+	wf, _, err := f.Walk([]string{"x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer wf.Clunk()
+
+	err = wf.Open(L_O_TRUNC | L_O_WRONLY)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected, err := io.ReadAll(
+		&io.LimitedReader{R: rand.Reader, N: int64(2 * client.Msize())},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := wf.Write(0, expected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != int(client.Msize()-IOHDRSZ) {
+		t.Fatalf("unexpected write count %d", n)
+	}
+
+	buf, err := os.ReadFile(dir + "/x")
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(buf[:n], expected[:n]) {

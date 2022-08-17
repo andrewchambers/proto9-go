@@ -2659,7 +2659,6 @@ func (v *Twrite) EncodedSize() uint64 {
 	sz += v.Tagged.EncodedSize()
 	sz += 4 // Fid
 	sz += 8 // Offset
-	sz += 4 // Count
 	sz += 4 + uint64(len(v.Data))
 	return sz
 }
@@ -2675,10 +2674,6 @@ func (v *Twrite) Encode(b *bytes.Buffer) error {
 		return err
 	}
 	err = encodeUint64(b, v.Offset)
-	if err != nil {
-		return err
-	}
-	err = encodeUint32(b, v.Count)
 	if err != nil {
 		return err
 	}
@@ -2700,10 +2695,6 @@ func (v *Twrite) Decode(b *bytes.Buffer) error {
 		return err
 	}
 	v.Offset, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.Count, err = decodeUint32(b)
 	if err != nil {
 		return err
 	}

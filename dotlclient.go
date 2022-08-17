@@ -208,3 +208,25 @@ func (f *ClientDotLFile) Read(offset uint64, buf []byte) (int, error) {
 		return 0, errors.New("protocol error, expected Rread")
 	}
 }
+
+func (f *ClientDotLFile) Write(offset uint64, buf []byte) (int, error) {
+	if uint32(len(buf)) > (f.Client.Msize() - IOHDRSZ) {
+		buf = buf[:int(f.Client.Msize()-IOHDRSZ)]
+	}
+	fc, err := f.Client.Fcall(&Twrite{
+		Fid:    f.Fid,
+		Offset: offset,
+		Data:   buf,
+	})
+	if err != nil {
+		return 0, err
+	}
+	switch fc := fc.(type) {
+	case *Rwrite:
+		return int(fc.Count), nil
+	case *Rlerror:
+		return 0, fc
+	default:
+		return 0, errors.New("protocol error, expected Rwrite")
+	}
+}

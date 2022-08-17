@@ -80,7 +80,6 @@ type Twrite struct {
 	Tagged
 	Fid    uint32
 	Offset uint64
-	Count  uint32
 	Data   []byte
 }
 

@@ -3,7 +3,6 @@ package proto9
 import (
 	"bytes"
 	"reflect"
-	"runtime"
 	"sync"
 	"testing"
 
@@ -24,7 +23,7 @@ func TestReadWrite(t *testing.T) {
 			}
 
 			fuzzer := fuzz.New().NilChance(0.0).NumElements(0, 32)
-			niters := runtime.NumCPU() * 3
+			niters := 10
 
 			for j := 0; j < niters; j++ {
 				fuzzer.Fuzz(fc)
