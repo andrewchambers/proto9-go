@@ -751,7 +751,6 @@ func (v *Rmknod) Decode(b *bytes.Buffer) error {
 func (v *Rread) EncodedSize() uint64 {
 	sz := uint64(0)
 	sz += v.Tagged.EncodedSize()
-	sz += 4 // Count
 	sz += 4 + uint64(len(v.Data))
 	return sz
 }
@@ -759,10 +758,6 @@ func (v *Rread) EncodedSize() uint64 {
 func (v *Rread) Encode(b *bytes.Buffer) error {
 	var err error
 	err = v.Tagged.Encode(b)
-	if err != nil {
-		return err
-	}
-	err = encodeUint32(b, v.Count)
 	if err != nil {
 		return err
 	}
@@ -776,10 +771,6 @@ func (v *Rread) Encode(b *bytes.Buffer) error {
 func (v *Rread) Decode(b *bytes.Buffer) error {
 	var err error
 	err = v.Tagged.Decode(b)
-	if err != nil {
-		return err
-	}
-	v.Count, err = decodeUint32(b)
 	if err != nil {
 		return err
 	}

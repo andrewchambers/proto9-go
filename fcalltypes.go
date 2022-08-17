@@ -73,8 +73,7 @@ type Tread struct {
 
 type Rread struct {
 	Tagged
-	Count uint32
-	Data  []byte
+	Data []byte
 }
 
 type Twrite struct {
@@ -233,27 +232,6 @@ type Rreadlink struct {
 	Target string
 }
 
-const (
-	GETATTR_MODE   uint64 = 0x00000001
-	GETATTR_NLINK  uint64 = 0x00000002
-	GETATTR_UID    uint64 = 0x00000004
-	GETATTR_GID    uint64 = 0x00000008
-	GETATTR_RDEV   uint64 = 0x00000010
-	GETATTR_ATIME  uint64 = 0x00000020
-	GETATTR_MTIME  uint64 = 0x00000040
-	GETATTR_CTIME  uint64 = 0x00000080
-	GETATTR_INO    uint64 = 0x00000100
-	GETATTR_SIZE   uint64 = 0x00000200
-	GETATTR_BLOCKS uint64 = 0x00000400
-
-	GETATTR_BTIME        uint64 = 0x00000800
-	GETATTR_GEN          uint64 = 0x00001000
-	GETATTR_DATA_VERSION uint64 = 0x00002000
-
-	GETATTR_BASIC uint64 = 0x000007ff
-	GETATTR_ALL   uint64 = 0x00003fff
-)
-
 type Tgetattr struct {
 	Tagged
 	Mask uint64
@@ -282,18 +260,6 @@ type Rgetattr struct {
 	Gen         uint64
 	DataVersion uint64
 }
-
-const (
-	SETATTR_MODE      uint32 = 0x00000001
-	SETATTR_UID       uint32 = 0x00000002
-	SETATTR_GID       uint32 = 0x00000004
-	SETATTR_SIZE      uint32 = 0x00000008
-	SETATTR_ATIME     uint32 = 0x00000010
-	SETATTR_MTIME     uint32 = 0x00000020
-	SETATTR_CTIME     uint32 = 0x00000040
-	SETATTR_ATIME_SET uint32 = 0x00000080
-	SETATTR_MTIME_SET uint32 = 0x00000100
-)
 
 type Tsetattr struct {
 	Tagged
@@ -364,20 +330,6 @@ type Tfsync struct {
 type Rfsync struct {
 	Tagged
 }
-
-const (
-	LOCK_TYPE_RDLCK byte = 0
-	LOCK_TYPE_WRLCK byte = 1
-	LOCK_TYPE_UNLCK byte = 2
-
-	LOCK_FLAGS_BLOCK   uint32 = 1
-	LOCK_FLAGS_RECLAIM uint32 = 2
-
-	LOCK_SUCCESS byte = 0
-	LOCK_BLOCKED byte = 1
-	LOCK_ERROR   byte = 2
-	LOCK_GRACE   byte = 3
-)
 
 type Tlock struct {
 	Tagged

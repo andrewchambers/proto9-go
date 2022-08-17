@@ -1,13 +1,18 @@
 package proto9
 
 import (
+	"bufio"
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net"
 	"os"
 	"os/exec"
 	"os/user"
+	"reflect"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -80,12 +85,41 @@ func NewDiodTestServer(t *testing.T) *DiodTestServer {
 		"diod",
 		diodOpts...,
 	)
-	diod.Stderr = os.Stderr
+
+	rpipe, wpipe, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	logWg := &sync.WaitGroup{}
+	logWg.Add(1)
+	go func() {
+		defer logWg.Done()
+		brdr := bufio.NewReader(rpipe)
+		for {
+			line, err := brdr.ReadString('\n')
+			if err != nil {
+				return
+			}
+			if len(line) == 0 {
+				continue
+			}
+			t.Log(line[:len(line)-1])
+		}
+	}()
+
+	t.Cleanup(func() {
+		logWg.Wait()
+	})
+
+	diod.Stderr = wpipe
+	diod.Stdout = wpipe
 
 	err = diod.Start()
 	if err != nil {
 		t.Fatal(err)
 	}
+	_ = wpipe.Close()
 
 	t.Cleanup(func() {
 		_ = diod.Process.Signal(syscall.SIGTERM)
@@ -120,7 +154,7 @@ func NewDiodTestServer(t *testing.T) *DiodTestServer {
 
 func NewTestDotLClient(t *testing.T) (*Client, *DiodTestServer) {
 	server := NewDiodTestServer(t)
-	client, err := NewClient(server.Dial(), "9P2000.L", 1024*1024)
+	client, err := NewClient(server.Dial(), "9P2000.L", 4096)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,5 +321,97 @@ func TestDotlRemove(t *testing.T) {
 	_, err = os.Stat(dir + "/x")
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatal(err)
+	}
+}
+
+func TestDotlRead(t *testing.T) {
+	client, server := NewTestDotLClient(t)
+
+	dir := server.ServeDir
+
+	expected := []byte("hello")
+	err := os.WriteFile(dir+"/x", expected, 0o777)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := AttachDotL(client, server.Aname, server.Uname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Clunk()
+
+	wf, _, err := f.Walk([]string{"x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer wf.Clunk()
+
+	err = wf.Open(L_O_RDONLY)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buf := make([]byte, 1024, 1024)
+	n, err := wf.Read(0, buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 5 {
+		t.Fatalf("unexpected count read %d", n)
+	}
+
+	buf = buf[:n]
+
+	if !reflect.DeepEqual(buf, expected) {
+		t.Fatalf("%v\n!=\n%v", buf, expected)
+	}
+}
+
+func TestDotlReadLargerThanMsize(t *testing.T) {
+	client, server := NewTestDotLClient(t)
+
+	dir := server.ServeDir
+
+	expected, err := io.ReadAll(
+		&io.LimitedReader{R: rand.Reader, N: int64(2 * client.Msize())},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = os.WriteFile(dir+"/x", expected, 0o777)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := AttachDotL(client, server.Aname, server.Uname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Clunk()
+
+	wf, _, err := f.Walk([]string{"x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer wf.Clunk()
+
+	err = wf.Open(L_O_RDONLY)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	buf := make([]byte, len(expected), len(expected))
+	n, err := wf.Read(0, buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != int(client.Msize()-IOHDRSZ) {
+		t.Fatalf("unexpected count read %d", n)
+	}
+
+	if !reflect.DeepEqual(buf[:n], expected[:n]) {
+		t.Fatalf("%v\n!=\n%v", buf[:n], expected[:n])
 	}
 }

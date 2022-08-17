@@ -1,0 +1,68 @@
+package proto9
+
+// Misc protocol constants.
+const (
+	NOTAG        = uint16(0xFFFF)
+	NOFID        = uint32(0xFFFFFFFF)
+	IOHDRSZ      = uint32(24)
+	READDIRHDRSZ = uint32(24)
+)
+
+// 9P2000.L Getattr flags.
+const (
+	L_GETATTR_MODE   uint64 = 0x00000001
+	L_GETATTR_NLINK  uint64 = 0x00000002
+	L_GETATTR_UID    uint64 = 0x00000004
+	L_GETATTR_GID    uint64 = 0x00000008
+	L_GETATTR_RDEV   uint64 = 0x00000010
+	L_GETATTR_ATIME  uint64 = 0x00000020
+	L_GETATTR_MTIME  uint64 = 0x00000040
+	L_GETATTR_CTIME  uint64 = 0x00000080
+	L_GETATTR_INO    uint64 = 0x00000100
+	L_GETATTR_SIZE   uint64 = 0x00000200
+	L_GETATTR_BLOCKS uint64 = 0x00000400
+
+	L_GETATTR_BTIME        uint64 = 0x00000800
+	L_GETATTR_GEN          uint64 = 0x00001000
+	L_GETATTR_DATA_VERSION uint64 = 0x00002000
+
+	L_GETATTR_BASIC uint64 = 0x000007ff
+	L_GETATTR_ALL   uint64 = 0x00003fff
+)
+
+// 9P2000.L Setattr flags.
+const (
+	L_SETATTR_MODE      uint32 = 0x00000001
+	L_SETATTR_UID       uint32 = 0x00000002
+	L_SETATTR_GID       uint32 = 0x00000004
+	L_SETATTR_SIZE      uint32 = 0x00000008
+	L_SETATTR_ATIME     uint32 = 0x00000010
+	L_SETATTR_MTIME     uint32 = 0x00000020
+	L_SETATTR_CTIME     uint32 = 0x00000040
+	L_SETATTR_ATIME_SET uint32 = 0x00000080
+	L_SETATTR_MTIME_SET uint32 = 0x00000100
+)
+
+// 9P2000.L Tlock flags.
+const (
+	L_LOCK_TYPE_RDLCK byte = 0
+	L_LOCK_TYPE_WRLCK byte = 1
+	L_LOCK_TYPE_UNLCK byte = 2
+
+	L_LOCK_FLAGS_BLOCK   uint32 = 1
+	L_LOCK_FLAGS_RECLAIM uint32 = 2
+
+	L_LOCK_SUCCESS byte = 0
+	L_LOCK_BLOCKED byte = 1
+	L_LOCK_ERROR   byte = 2
+	L_LOCK_GRACE   byte = 3
+)
+
+// 9P2000.L Tlopen flags.
+const (
+	L_O_RDONLY = 0
+	L_O_WRONLY = 1
+	L_O_RDWR   = 2
+	L_O_EXCL   = 0o200
+	L_O_TRUNC  = 0o1000
+)
