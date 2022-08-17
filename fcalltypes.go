@@ -56,12 +56,12 @@ type Twalk struct {
 	Tagged
 	Fid    uint32
 	NewFid uint32
-	WQid   []Qid
+	Wnames []string
 }
 
 type Rwalk struct {
 	Tagged
-	WQid []Qid
+	WQids []Qid
 }
 
 type Tread struct {
@@ -138,11 +138,6 @@ type Rattach struct {
 type Rlerror struct {
 	Tagged
 	Ecode uint32
-}
-
-func (e *Rlerror) Error() string {
-	// XXX proper conversion
-	return fmt.Sprintf("Error: %d", e.Ecode)
 }
 
 type Tstatfs struct {

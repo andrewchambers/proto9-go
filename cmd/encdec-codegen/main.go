@@ -24,6 +24,20 @@ func isByteSlice(t types.Type) bool {
 	return false
 }
 
+func isStringSlice(t types.Type) bool {
+	switch t := t.(type) {
+	case *types.Slice:
+		switch etype := t.Elem().(type) {
+		case *types.Basic:
+			switch etype.Kind() {
+			case types.String:
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func isQidSlice(t types.Type) bool {
 	switch t := t.(type) {
 	case *types.Slice:
@@ -90,6 +104,12 @@ func outEncodedSize(topLevelName string, t *types.Struct, out io.Writer) {
 					fmt.Errorf("don't know how to get size of type field %s", f.Type()),
 				)
 			}
+		} else if isStringSlice(f.Type()) {
+			fmt.Fprintf(out, "// %s\n", f.Name())
+			fmt.Fprintf(out, "sz += 2\n")
+			fmt.Fprintf(out, "for _, s := range v.%s {\n", f.Name())
+			fmt.Fprintf(out, "sz += 2 + uint64(len(s))\n")
+			fmt.Fprintf(out, "}\n")
 		} else if isByteSlice(f.Type()) {
 			fmt.Fprintf(out, "sz += 4 + uint64(len(v.%s))\n", f.Name())
 		} else if isStringType(f.Type()) {
@@ -116,6 +136,8 @@ func outEncoder(topLevelName string, t *types.Struct, out io.Writer) {
 			fmt.Fprintf(out, "err = encode%s(b, v.%s)\n", upperCaseFirst(f.Type().String()), f.Name())
 		} else if isByteSlice(f.Type()) {
 			fmt.Fprintf(out, "err = encodeByteSlice(b, v.%s)\n", f.Name())
+		} else if isStringSlice(f.Type()) {
+			fmt.Fprintf(out, "err = encodeStringSlice(b, v.%s)\n", f.Name())
 		} else if isStringType(f.Type()) {
 			fmt.Fprintf(out, "err = encodeString(b, v.%s)\n", f.Name())
 		} else if isQidSlice(f.Type()) {
@@ -141,6 +163,8 @@ func outDecoder(topLevelName string, t *types.Struct, out io.Writer) {
 			fmt.Fprintf(out, "v.%s, err = decode%s(b)\n", f.Name(), upperCaseFirst(f.Type().String()))
 		} else if isByteSlice(f.Type()) {
 			fmt.Fprintf(out, "v.%s, err = decodeByteSlice(b)\n", f.Name())
+		} else if isStringSlice(f.Type()) {
+			fmt.Fprintf(out, "v.%s, err = decodeStringSlice(b)\n", f.Name())
 		} else if isStringType(f.Type()) {
 			fmt.Fprintf(out, "v.%s, err = decodeString(b)\n", f.Name())
 		} else if isQidSlice(f.Type()) {

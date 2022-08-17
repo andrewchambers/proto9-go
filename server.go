@@ -8,7 +8,7 @@ import (
 
 type Filesystem interface {
 	Fcall(Fcall) Fcall
-	Clunk()
+	Clunk() error
 }
 
 func Serve(l net.Listener, makeFilesystem func() Filesystem) error {
@@ -111,11 +111,13 @@ func (fs *DotLFilesystem) Fcall(fc Fcall) Fcall {
 	}
 }
 
-func (fs *DotLFilesystem) Clunk() {
+func (fs *DotLFilesystem) Clunk() error {
 	fs.filesLock.RLock()
 	defer fs.filesLock.RUnlock()
 
 	for _, f := range fs.files {
-		f.Clunk()
+		_ = f.Clunk()
 	}
+
+	return nil
 }

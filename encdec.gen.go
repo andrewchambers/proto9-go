@@ -1159,7 +1159,7 @@ func (v *Rversion) Decode(b *bytes.Buffer) error {
 func (v *Rwalk) EncodedSize() uint64 {
 	sz := uint64(0)
 	sz += v.Tagged.EncodedSize()
-	sz += 2 + uint64(len(v.WQid))*13
+	sz += 2 + uint64(len(v.WQids))*13
 	return sz
 }
 
@@ -1169,7 +1169,7 @@ func (v *Rwalk) Encode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	err = encodeQids(b, v.WQid)
+	err = encodeQids(b, v.WQids)
 	if err != nil {
 		return err
 	}
@@ -1182,7 +1182,7 @@ func (v *Rwalk) Decode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	v.WQid, err = decodeQids(b)
+	v.WQids, err = decodeQids(b)
 	if err != nil {
 		return err
 	}
@@ -2613,7 +2613,11 @@ func (v *Twalk) EncodedSize() uint64 {
 	sz += v.Tagged.EncodedSize()
 	sz += 4 // Fid
 	sz += 4 // NewFid
-	sz += 2 + uint64(len(v.WQid))*13
+	// Wnames
+	sz += 2
+	for _, s := range v.Wnames {
+		sz += 2 + uint64(len(s))
+	}
 	return sz
 }
 
@@ -2631,7 +2635,7 @@ func (v *Twalk) Encode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	err = encodeQids(b, v.WQid)
+	err = encodeStringSlice(b, v.Wnames)
 	if err != nil {
 		return err
 	}
@@ -2652,7 +2656,7 @@ func (v *Twalk) Decode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	v.WQid, err = decodeQids(b)
+	v.Wnames, err = decodeStringSlice(b)
 	if err != nil {
 		return err
 	}

@@ -65,6 +65,23 @@ func encodeString(b *bytes.Buffer, v string) error {
 	return err
 }
 
+func encodeStringSlice(b *bytes.Buffer, v []string) error {
+	if len(v) > 0xffff {
+		return ErrValueTooLong
+	}
+	err := encodeUint16(b, uint16(len(v)))
+	if err != nil {
+		return err
+	}
+	for _, s := range v {
+		err = encodeString(b, s)
+		if err != nil {
+			return err
+		}
+	}
+	return err
+}
+
 func encodeByteSlice(b *bytes.Buffer, v []byte) error {
 	if len(v) > 0xffffffff {
 		return ErrValueTooLong
@@ -147,6 +164,22 @@ func decodeString(b *bytes.Buffer) (string, error) {
 		return "", ErrDecodingFailed
 	}
 	return string(buf), nil
+}
+
+func decodeStringSlice(b *bytes.Buffer) ([]string, error) {
+	l, err := decodeUint16(b)
+	if err != nil {
+		return nil, err
+	}
+	strs := make([]string, 0, int(l))
+	for i := 0; i < int(l); i++ {
+		s, err := decodeString(b)
+		if err != nil {
+			return nil, err
+		}
+		strs = append(strs, s)
+	}
+	return strs, nil
 }
 
 func decodeByteSlice(b *bytes.Buffer) ([]byte, error) {
