@@ -462,3 +462,46 @@ func TestDotlSetAttr(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestDotlRename(t *testing.T) {
+	client, server := NewTestDotLClient(t)
+
+	f, err := AttachDotL(client, server.Aname, server.Uname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Clunk()
+
+	xf, _, err := f.Walk([]string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = xf.Create("x", 0, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// XXX
+	// https://github.com/chaos/diod/issues/93
+	// When this issue is addressed the enclosed section can be deleted.
+	err = xf.Clunk()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	xf, _, err = f.Walk([]string{"x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// END
+
+	err = xf.Rename(f, "y")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = os.Stat(server.ServeDir + "/y")
+	if err != nil {
+		t.Fatal(err)
+	}
+}

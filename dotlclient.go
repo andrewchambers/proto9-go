@@ -287,3 +287,22 @@ func (f *ClientDotLFile) SetAttr(attr LSetAttr) error {
 		return errors.New("protocol error, expected Rsetattr")
 	}
 }
+
+func (f *ClientDotLFile) Rename(dir *ClientDotLFile, name string) error {
+	fc, err := f.Client.Fcall(&Trename{
+		Fid:  f.Fid,
+		Dfid: dir.Fid,
+		Name: name,
+	})
+	if err != nil {
+		return err
+	}
+	switch fc := fc.(type) {
+	case *Rrename:
+		return nil
+	case *Rlerror:
+		return fc
+	default:
+		return errors.New("protocol error, expected Rrename")
+	}
+}
