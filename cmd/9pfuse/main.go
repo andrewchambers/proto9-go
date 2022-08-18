@@ -15,7 +15,6 @@ import (
 	"github.com/hanwen/go-fuse/v2/fuse"
 )
 
-
 func ErrToErrno(err error) syscall.Errno {
 	switch err := err.(type) {
 	case *proto9.Rlerror:
@@ -62,11 +61,72 @@ func FillEntryOutFromAttr(attr *proto9.LAttr, out *fuse.EntryOut) {
 	out.Rdev = uint32(attr.Rdev)
 }
 
+func DirEntToFuseDirent(de *proto9.DirEnt) fuse.DirEntry {
+	return fuse.DirEntry{
+		Mode: uint32(de.Typ),
+		Ino:  de.Qid.Path,
+		Name: de.Name,
+	}
+}
 
+type DirHandle9 struct {
+	file   *proto9.ClientDotLFile
+	ents   []proto9.DirEnt
+	offset uint64
+	done   bool
+}
 
-type Inode9 struct {
-	fs.Inode
-	file *proto9.ClientDotLFile
+func (dh *DirHandle9) HasNext() bool {
+	return !dh.done
+}
+
+func (dh *DirHandle9) fill() error {
+	ents, err := dh.file.Readdir(dh.offset, 0xFFFFFFFF)
+	if err != nil {
+		return err
+	}
+	dh.ents = append(dh.ents, ents...)
+	if len(dh.ents) > 0 {
+		dh.offset = dh.ents[len(dh.ents)-1].Offset
+	} else {
+		dh.done = true
+	}
+	return nil
+}
+
+func (dh *DirHandle9) Next() (fuse.DirEntry, syscall.Errno) {
+
+	if dh.done {
+		return fuse.DirEntry{}, syscall.EIO
+	}
+
+	// Fill initial listing, otherwise we should always have something.
+	if len(dh.ents) == 0 {
+		err := dh.fill()
+		if err != nil {
+			return fuse.DirEntry{}, ErrToErrno(err)
+		}
+		if dh.done {
+			// Should never really happen considering . and ..
+			return fuse.DirEntry{}, syscall.EIO
+		}
+	}
+
+	nextEnt := dh.ents[0]
+	dh.ents = dh.ents[1:]
+
+	if len(dh.ents) == 0 {
+		err := dh.fill()
+		if err != nil {
+			return fuse.DirEntry{}, ErrToErrno(err)
+		}
+	}
+
+	return DirEntToFuseDirent(&nextEnt), 0
+}
+
+func (dh *DirHandle9) Close() {
+	_ = dh.file.Clunk()
 }
 
 type FileHandle9 struct {
@@ -74,6 +134,8 @@ type FileHandle9 struct {
 }
 
 var _ = (fs.FileReader)((*FileHandle9)(nil))
+var _ = (fs.FileWriter)((*FileHandle9)(nil))
+var _ = (fs.FileReleaser)((*FileHandle9)(nil))
 
 func (fh *FileHandle9) Read(ctx context.Context, dest []byte, off int64) (fuse.ReadResult, syscall.Errno) {
 	n, err := fh.file.Read(uint64(off), dest)
@@ -83,8 +145,6 @@ func (fh *FileHandle9) Read(ctx context.Context, dest []byte, off int64) (fuse.R
 	return fuse.ReadResultData(dest[:n]), 0
 }
 
-var _ = (fs.FileWriter)((*FileHandle9)(nil))
-
 func (fh *FileHandle9) Write(ctx context.Context, dest []byte, off int64) (uint32, syscall.Errno) {
 	n, err := fh.file.Write(uint64(off), dest)
 	if err != nil {
@@ -93,15 +153,19 @@ func (fh *FileHandle9) Write(ctx context.Context, dest []byte, off int64) (uint3
 	return n, 0
 }
 
-var _ = (fs.FileReleaser)((*FileHandle9)(nil))
-
 func (fh *FileHandle9) Release(ctx context.Context) syscall.Errno {
 	_ = fh.file.Clunk()
 	return 0
 }
 
+type Inode9 struct {
+	fs.Inode
+	file *proto9.ClientDotLFile
+}
 
 var _ = (fs.NodeLookuper)((*Inode9)(nil))
+var _ = (fs.NodeOpener)((*Inode9)(nil))
+var _ = (fs.NodeReaddirer)((*Inode9)(nil))
 
 func (n *Inode9) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
 	newf, qids, err := n.file.Walk([]string{name})
@@ -120,17 +184,20 @@ func (n *Inode9) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*
 	return newInode, 0
 }
 
-var _ = (fs.NodeOpener)((*Inode9)(nil))
-
 func (n *Inode9) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint32, syscall.Errno) {
-	
+
 	var flags9 uint32
-	if flags&syscall.O_RDWR ==  syscall.O_RDWR {
+
+	if flags&syscall.O_RDWR == syscall.O_RDWR {
 		flags9 |= proto9.L_O_RDWR
-	} else if flags&syscall.O_WRONLY ==  syscall.O_WRONLY {
+	} else if flags&syscall.O_WRONLY == syscall.O_WRONLY {
 		flags9 |= proto9.L_O_WRONLY
-	} else if flags&syscall.O_RDONLY ==  syscall.O_RDONLY {
+	} else if flags&syscall.O_RDONLY == syscall.O_RDONLY {
 		flags9 |= proto9.L_O_RDONLY
+	}
+
+	if flags&syscall.O_TRUNC == syscall.O_TRUNC {
+		flags9 |= proto9.L_O_TRUNC
 	}
 
 	newf, _, err := n.file.Walk([]string{})
@@ -138,11 +205,11 @@ func (n *Inode9) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint32,
 		return nil, 0, ErrToErrno(err)
 	}
 	success := false
-	defer func () {
+	defer func() {
 		if !success {
 			_ = newf.Clunk()
 		}
-	} ()
+	}()
 	err = newf.Open(flags9)
 	if err != nil {
 		return nil, 0, ErrToErrno(err)
@@ -152,6 +219,28 @@ func (n *Inode9) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint32,
 	}
 	success = true
 	return fh, fuse.FOPEN_DIRECT_IO, 0
+}
+
+func (n *Inode9) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
+	newf, _, err := n.file.Walk([]string{})
+	if err != nil {
+		return nil, ErrToErrno(err)
+	}
+	success := false
+	defer func() {
+		if !success {
+			_ = newf.Clunk()
+		}
+	}()
+	err = newf.Open(proto9.L_O_RDONLY)
+	if err != nil {
+		return nil, ErrToErrno(err)
+	}
+	dh := &DirHandle9{
+		file: newf,
+	}
+	success = true
+	return dh, 0
 }
 
 func usage() {

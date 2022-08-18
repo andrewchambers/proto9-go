@@ -49,7 +49,6 @@ func isQidSlice(t types.Type) bool {
 	return false
 }
 
-
 func isDirEntSlice(t types.Type) bool {
 	switch t := t.(type) {
 	case *types.Slice:
@@ -60,7 +59,6 @@ func isDirEntSlice(t types.Type) bool {
 	}
 	return false
 }
-
 
 func isNumberType(t types.Type) bool {
 	switch t := t.(type) {

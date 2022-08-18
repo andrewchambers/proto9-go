@@ -361,7 +361,11 @@ func (f *ClientDotLFile) Statfs() (LStatfs, error) {
 	}
 }
 
-func (f *ClientDotLFile) Readdir(count uint32, offset uint64) ([]DirEnt, error) {
+func (f *ClientDotLFile) Readdir(offset uint64, count uint32) ([]DirEnt, error) {
+	maxCount := f.Client.Msize() - READDIRHDRSZ
+	if count > maxCount {
+		count = maxCount
+	}
 	fc, err := f.Client.Fcall(&Treaddir{
 		Fid:    f.Fid,
 		Offset: offset,
@@ -384,7 +388,7 @@ func (f *ClientDotLFile) ReaddirAll() ([]DirEnt, error) {
 	allEnts := make([]DirEnt, 0, 8)
 	offset := uint64(0)
 	for {
-		ents, err := f.Readdir(f.Client.Msize()-READDIRHDRSZ, offset)
+		ents, err := f.Readdir(offset, 0xFFFFFFFF)
 		if err != nil {
 			return nil, err
 		}
