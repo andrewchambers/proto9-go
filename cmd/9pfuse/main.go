@@ -137,14 +137,20 @@ func (n *Inode9) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint32,
 	if err != nil {
 		return nil, 0, ErrToErrno(err)
 	}
+	success := false
+	defer func () {
+		if !success {
+			_ = newf.Clunk()
+		}
+	} ()
 	err = newf.Open(flags9)
 	if err != nil {
-		_ = newf.Clunk()
 		return nil, 0, ErrToErrno(err)
 	}
 	fh := &FileHandle9{
 		file: newf,
 	}
+	success = true
 	return fh, fuse.FOPEN_DIRECT_IO, 0
 }
 

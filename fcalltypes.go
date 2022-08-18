@@ -9,6 +9,7 @@ type Fcall interface {
 	Kind() uint8
 	GetTag() uint16
 	SetTag(uint16)
+	EncodedSize() uint64
 	Encode(*bytes.Buffer) error
 	Decode(*bytes.Buffer) error
 }
@@ -324,7 +325,7 @@ type Treaddir struct {
 
 type Rreaddir struct {
 	Tagged
-	Data []byte
+	Data []DirEnt
 }
 
 type DirEnt struct {

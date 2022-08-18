@@ -360,3 +360,39 @@ func (f *ClientDotLFile) Statfs() (LStatfs, error) {
 		return LStatfs{}, errors.New("protocol error, expected Rstatfs")
 	}
 }
+
+func (f *ClientDotLFile) Readdir(count uint32, offset uint64) ([]DirEnt, error) {
+	fc, err := f.Client.Fcall(&Treaddir{
+		Fid:    f.Fid,
+		Offset: offset,
+		Count:  count,
+	})
+	if err != nil {
+		return nil, err
+	}
+	switch fc := fc.(type) {
+	case *Rreaddir:
+		return fc.Data, nil
+	case *Rlerror:
+		return nil, fc
+	default:
+		return nil, errors.New("protocol error, expected Rreaddir")
+	}
+}
+
+func (f *ClientDotLFile) ReaddirAll() ([]DirEnt, error) {
+	allEnts := make([]DirEnt, 0, 8)
+	offset := uint64(0)
+	for {
+		ents, err := f.Readdir(f.Client.Msize()-READDIRHDRSZ, offset)
+		if err != nil {
+			return nil, err
+		}
+		if len(ents) == 0 {
+			break
+		}
+		allEnts = append(allEnts, ents...)
+		offset = allEnts[len(allEnts)-1].Offset
+	}
+	return allEnts, nil
+}

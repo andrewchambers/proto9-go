@@ -540,3 +540,38 @@ func TestDotLStatfs(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestDotLReadDir(t *testing.T) {
+
+	client, server := NewTestDotLClient(t)
+
+	f, err := AttachDotL(client, server.Aname, server.Uname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Clunk()
+
+	nEnts := 1456
+
+	// Create a large directory.
+	for i := 0; i < nEnts; i++ {
+		err := os.Mkdir(fmt.Sprintf("%s/XXXXXXXX%d", server.ServeDir, i), 0o777)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	err = f.Open(L_O_RDONLY)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ents, err := f.ReaddirAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(ents) != nEnts+2 {
+		t.Fatalf("expected %d dir ents, but got %d", nEnts+2, len(ents))
+	}
+}

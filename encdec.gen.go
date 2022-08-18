@@ -1000,7 +1000,11 @@ func (v *Rread) Decode(b *bytes.Buffer) error {
 func (v *Rreaddir) EncodedSize() uint64 {
 	sz := uint64(0)
 	sz += v.Tagged.EncodedSize()
-	sz += 4 + uint64(len(v.Data))
+	// Data
+	sz += 4
+	for i := range v.Data {
+		sz += v.Data[i].EncodedSize()
+	}
 	return sz
 }
 
@@ -1010,7 +1014,7 @@ func (v *Rreaddir) Encode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	err = encodeByteSlice(b, v.Data)
+	err = encodeDirEntSlice(b, v.Data)
 	if err != nil {
 		return err
 	}
@@ -1023,7 +1027,7 @@ func (v *Rreaddir) Decode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	v.Data, err = decodeByteSlice(b)
+	v.Data, err = decodeDirEntSlice(b)
 	if err != nil {
 		return err
 	}

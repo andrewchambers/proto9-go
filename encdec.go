@@ -94,6 +94,28 @@ func encodeByteSlice(b *bytes.Buffer, v []byte) error {
 	return nil
 }
 
+func encodeDirEntSlice(b *bytes.Buffer, v []DirEnt) error {
+	countPos := b.Len()
+	_, err := b.Write([]byte{0, 0, 0, 0})
+	if err != nil {
+		return err
+	}
+	for i := range v {
+		err = v[i].Encode(b)
+		if err != nil {
+			return err
+		}
+	}
+	endPos := b.Len()
+	count := endPos - countPos - 4
+	countBuf := b.Bytes()[countPos : countPos+4]
+	countBuf[0] = byte(count & 0xff)
+	countBuf[1] = byte((count & 0xff00) >> 8)
+	countBuf[2] = byte((count & 0xff0000) >> 16)
+	countBuf[3] = byte((count & 0xff000000) >> 24)
+	return nil
+}
+
 func encodeQids(b *bytes.Buffer, v []Qid) error {
 	if len(v) > 13 {
 		return ErrValueTooLong
@@ -195,6 +217,26 @@ func decodeByteSlice(b *bytes.Buffer) ([]byte, error) {
 		return nil, ErrDecodingFailed
 	}
 	return buf, nil
+}
+
+func decodeDirEntSlice(b *bytes.Buffer) ([]DirEnt, error) {
+	l, err := decodeUint32(b)
+	if err != nil {
+		return nil, err
+	}
+	ents := []DirEnt{}
+	ent := DirEnt{}
+	for l != 0 {
+		startLen := uint32(len(b.Bytes()))
+		err = ent.Decode(b)
+		if err != nil {
+			return nil, err
+		}
+		endLen := uint32(len(b.Bytes()))
+		l -= (startLen - endLen)
+		ents = append(ents, ent)
+	}
+	return ents, nil
 }
 
 func decodeQids(b *bytes.Buffer) ([]Qid, error) {

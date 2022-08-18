@@ -49,6 +49,19 @@ func isQidSlice(t types.Type) bool {
 	return false
 }
 
+
+func isDirEntSlice(t types.Type) bool {
+	switch t := t.(type) {
+	case *types.Slice:
+		switch etype := t.Elem().(type) {
+		case *types.Named:
+			return etype.Obj().Name() == "DirEnt"
+		}
+	}
+	return false
+}
+
+
 func isNumberType(t types.Type) bool {
 	switch t := t.(type) {
 	case *types.Basic:
@@ -110,6 +123,12 @@ func outEncodedSize(topLevelName string, t *types.Struct, out io.Writer) {
 			fmt.Fprintf(out, "for _, s := range v.%s {\n", f.Name())
 			fmt.Fprintf(out, "sz += 2 + uint64(len(s))\n")
 			fmt.Fprintf(out, "}\n")
+		} else if isDirEntSlice(f.Type()) {
+			fmt.Fprintf(out, "// %s\n", f.Name())
+			fmt.Fprintf(out, "sz += 4\n")
+			fmt.Fprintf(out, "for i := range v.%s {\n", f.Name())
+			fmt.Fprintf(out, "sz += v.%s[i].EncodedSize()\n", f.Name())
+			fmt.Fprintf(out, "}\n")
 		} else if isByteSlice(f.Type()) {
 			fmt.Fprintf(out, "sz += 4 + uint64(len(v.%s))\n", f.Name())
 		} else if isStringType(f.Type()) {
@@ -138,6 +157,8 @@ func outEncoder(topLevelName string, t *types.Struct, out io.Writer) {
 			fmt.Fprintf(out, "err = encodeByteSlice(b, v.%s)\n", f.Name())
 		} else if isStringSlice(f.Type()) {
 			fmt.Fprintf(out, "err = encodeStringSlice(b, v.%s)\n", f.Name())
+		} else if isDirEntSlice(f.Type()) {
+			fmt.Fprintf(out, "err = encodeDirEntSlice(b, v.%s)\n", f.Name())
 		} else if isStringType(f.Type()) {
 			fmt.Fprintf(out, "err = encodeString(b, v.%s)\n", f.Name())
 		} else if isQidSlice(f.Type()) {
@@ -163,6 +184,8 @@ func outDecoder(topLevelName string, t *types.Struct, out io.Writer) {
 			fmt.Fprintf(out, "v.%s, err = decode%s(b)\n", f.Name(), upperCaseFirst(f.Type().String()))
 		} else if isByteSlice(f.Type()) {
 			fmt.Fprintf(out, "v.%s, err = decodeByteSlice(b)\n", f.Name())
+		} else if isDirEntSlice(f.Type()) {
+			fmt.Fprintf(out, "v.%s, err = decodeDirEntSlice(b)\n", f.Name())
 		} else if isStringSlice(f.Type()) {
 			fmt.Fprintf(out, "v.%s, err = decodeStringSlice(b)\n", f.Name())
 		} else if isStringType(f.Type()) {

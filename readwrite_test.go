@@ -33,12 +33,17 @@ func TestReadWrite(t *testing.T) {
 				if err != nil {
 					continue
 				}
+
+				if uint64(buf.Len()-5) != fc.EncodedSize() {
+					t.Fatalf("EncodedSize %d did not match actual size %d for %#v", fc.EncodedSize(), buf.Len()-5, fc)
+				}
+
 				fc2, err := ReadFcall(msize, &buf)
 				if err != nil {
 					t.Fatalf("encoding %v failed with error %s", fc, err)
 				}
 				if !reflect.DeepEqual(fc, fc2) {
-					t.Fatalf("%#v\n should equal\n %#v", fc, fc2)
+					t.Fatalf("%#v\n should equal\n %#v", fc2, fc)
 				}
 			}
 		}(i)
