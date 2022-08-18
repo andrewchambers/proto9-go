@@ -16,6 +16,9 @@ import (
 )
 
 func ErrToErrno(err error) syscall.Errno {
+	if err == nil {
+		return 0
+	}
 	switch err := err.(type) {
 	case *proto9.Rlerror:
 		// TODO: we need an adaptor for non linux platforms.
@@ -175,46 +178,196 @@ func (fh *FileHandle9) Release(ctx context.Context) syscall.Errno {
 type Inode9 struct {
 	fs.Inode
 	root *proto9.ClientDotLFile
-	path []string
 }
 
 var _ = (fs.NodeGetattrer)((*Inode9)(nil))
+var _ = (fs.NodeSetattrer)((*Inode9)(nil))
 var _ = (fs.NodeLookuper)((*Inode9)(nil))
 var _ = (fs.NodeCreater)((*Inode9)(nil))
 var _ = (fs.NodeOpener)((*Inode9)(nil))
 var _ = (fs.NodeReaddirer)((*Inode9)(nil))
+var _ = (fs.NodeUnlinker)((*Inode9)(nil))
+var _ = (fs.NodeRmdirer)((*Inode9)(nil))
+var _ = (fs.NodeRenamer)((*Inode9)(nil))
+
+func (n *Inode9) pathToRoot() ([]string, bool) {
+	if n.IsRoot() {
+		return []string{}, true
+	}
+	path := make([]string, 0, 8)
+	curNode := n.EmbeddedInode()
+	for {
+		name, nextNode := curNode.Parent()
+		if nextNode == nil {
+			return nil, false
+		}
+		path = append(path, name)
+		if nextNode.IsRoot() {
+			break
+		}
+		curNode = nextNode
+	}
+	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
+		path[i], path[j] = path[j], path[i]
+	}
+	return path, true
+}
 
 func (n *Inode9) Getattr(ctx context.Context, fh fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
-	if fh != nil {
-		fh9 := fh.(*FileHandle9)
-		attr, err := fh9.file.GetAttr(proto9.L_GETATTR_ALL)
-		if err != nil {
-			return ErrToErrno(err)
-		}
-		FillFuseAttrOutFromAttr(&attr, &out.Attr)
-		return 0
-	} else {
-		f, _, err := n.root.Walk(n.path)
-		if err != nil {
-			return ErrToErrno(err)
-		}
-		defer f.Clunk()
+	var f *proto9.ClientDotLFile
 
-		attr, err := f.GetAttr(proto9.L_GETATTR_ALL)
+	if fh != nil {
+		f = fh.(*FileHandle9).file
+	} else {
+		path, found := n.pathToRoot()
+		if !found {
+			return syscall.EIO
+		}
+		newf, _, err := n.root.Walk(path)
 		if err != nil {
 			return ErrToErrno(err)
 		}
-		FillFuseAttrOutFromAttr(&attr, &out.Attr)
-		return 0
+		defer newf.Clunk()
+		f = newf
 	}
+	attr, err := f.GetAttr(proto9.L_GETATTR_ALL)
+	if err != nil {
+		return ErrToErrno(err)
+	}
+	FillFuseAttrOutFromAttr(&attr, &out.Attr)
+	return 0
 
 }
 
-func (n *Inode9) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
-	path := make([]string, 0, len(n.path)+1)
-	path = append([]string{}, n.path...)
-	path = append(path, name)
+func (n *Inode9) Setattr(ctx context.Context, fh fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
 
+	var f *proto9.ClientDotLFile
+
+	if fh != nil {
+		f = fh.(*FileHandle9).file
+	} else {
+		path, found := n.pathToRoot()
+		if !found {
+			return syscall.EIO
+		}
+		newf, _, err := n.root.Walk(path)
+		if err != nil {
+			return ErrToErrno(err)
+		}
+		defer newf.Clunk()
+		f = newf
+	}
+
+	setAttr := proto9.LSetAttr{}
+
+	if mtime, ok := in.GetMTime(); ok {
+		setAttr.MtimeSec = uint64(mtime.Unix())
+		setAttr.MtimeNsec = uint64(mtime.UnixNano() - (mtime.Unix() * 1000_000_000))
+		setAttr.Valid |= proto9.L_SETATTR_MTIME
+	}
+	if atime, ok := in.GetATime(); ok {
+		setAttr.AtimeSec = uint64(atime.Unix())
+		setAttr.AtimeNsec = uint64(atime.UnixNano() - (atime.Unix() * 1000_000_000))
+		setAttr.Valid |= proto9.L_SETATTR_ATIME
+	}
+	if size, ok := in.GetSize(); ok {
+		setAttr.Size = size
+		setAttr.Valid |= proto9.L_SETATTR_SIZE
+	}
+	if mode, ok := in.GetMode(); ok {
+		setAttr.Mode = mode
+		setAttr.Valid |= proto9.L_SETATTR_MODE
+	}
+
+	// TODO
+	// in.GetCTime()
+	// in.GetGID()
+	// in.GetUID()
+
+	err := f.SetAttr(setAttr)
+	if err != nil {
+		return ErrToErrno(err)
+	}
+
+	// XXX Not sure if we need to run GetAttr, we don't cache attributes anyway.
+	/*
+		attr, err := fh.file.GetAttr(proto9.L_GETATTR_ALL)
+		if err != nil {
+			return ErrToErrno(err)
+		}
+		FillFuseAttrOutFromAttr(&attr, &out.Attr)
+	*/
+
+	return 0
+}
+
+func (n *Inode9) Rename(ctx context.Context, name string, newParent fs.InodeEmbedder, newName string, flags uint32) syscall.Errno {
+
+	// XXX mutex?
+	// XXX handle flags
+	//if flags != 0 {
+	//	return syscall.ENOTSUP
+	//}
+
+	oldChildPath, found := n.pathToRoot()
+	if !found {
+		return syscall.EIO
+	}
+	oldChildPath = append(oldChildPath, name)
+
+	f, _, err := n.root.Walk(oldChildPath)
+	if err != nil {
+		return ErrToErrno(err)
+	}
+	defer f.Clunk()
+
+	newParent9 := newParent.(*Inode9)
+	newChildPath, found := newParent9.pathToRoot()
+	if !found {
+		return syscall.EIO
+	}
+	newChildPath = append(newChildPath, newName)
+	newParentPath := newChildPath[:len(newChildPath)-1]
+
+	parentf, _, err := newParent9.root.Walk(newParentPath)
+	if err != nil {
+		return ErrToErrno(err)
+	}
+	defer parentf.Clunk()
+
+	err = f.Rename(parentf, newName)
+	if err != nil {
+		return ErrToErrno(err)
+	}
+
+	// TODO update child path somehow?
+
+	return 0
+}
+
+func (n *Inode9) Unlink(ctx context.Context, name string) syscall.Errno {
+	path, found := n.pathToRoot()
+	if !found {
+		return syscall.EIO
+	}
+	path = append(path, name)
+	f, _, err := n.root.Walk(path)
+	if err != nil {
+		return ErrToErrno(err)
+	}
+	return ErrToErrno(f.Remove())
+}
+
+func (n *Inode9) Rmdir(ctx context.Context, name string) syscall.Errno {
+	return n.Unlink(ctx, name)
+}
+
+func (n *Inode9) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
+	path, found := n.pathToRoot()
+	if !found {
+		return nil, syscall.EIO
+	}
+	path = append(path, name)
 	f, qids, err := n.root.Walk(path)
 	if err != nil {
 		return nil, ErrToErrno(err)
@@ -229,18 +382,21 @@ func (n *Inode9) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*
 	}
 	FillFuseEntryOutFromAttr(&attr, out)
 
-	newInode := n.NewInode(ctx, &Inode9{root: n.root, path: path}, StableAttrFromQid(&qids[0]))
-
+	newInode := n.NewInode(ctx, &Inode9{root: n.root}, StableAttrFromQid(&qids[0]))
 	return newInode, 0
 }
 
 func (n *Inode9) Create(ctx context.Context, name string, flags uint32, mode uint32, out *fuse.EntryOut) (*fs.Inode, fs.FileHandle, uint32, syscall.Errno) {
 
-	path := make([]string, 0, len(n.path)+1)
-	path = append([]string{}, n.path...)
+	path, found := n.pathToRoot()
+	if !found {
+		return nil, nil, 0, syscall.EIO
+	}
 	path = append(path, name)
+	// so we only need a single path load.
+	parentPath := path[:len(path)-1]
 
-	f, _, err := n.root.Walk(path)
+	f, _, err := n.root.Walk(parentPath)
 	if err != nil {
 		return nil, nil, 0, ErrToErrno(err)
 	}
@@ -270,7 +426,8 @@ func (n *Inode9) Create(ctx context.Context, name string, flags uint32, mode uin
 	}
 
 	FillFuseEntryOutFromAttr(&attr, out)
-	newInode := n.NewInode(ctx, &Inode9{root: n.root, path: path}, StableAttrFromQid(&qid))
+
+	newInode := n.NewInode(ctx, &Inode9{root: n.root}, StableAttrFromQid(&qid))
 	success = true
 	return newInode, &FileHandle9{file: f}, fuse.FOPEN_DIRECT_IO, 0
 }
@@ -291,7 +448,11 @@ func (n *Inode9) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint32,
 		flags9 |= proto9.L_O_TRUNC
 	}
 
-	newf, _, err := n.root.Walk(n.path)
+	path, found := n.pathToRoot()
+	if !found {
+		return nil, 0, syscall.EIO
+	}
+	newf, _, err := n.root.Walk(path)
 	if err != nil {
 		return nil, 0, ErrToErrno(err)
 	}
@@ -310,7 +471,11 @@ func (n *Inode9) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint32,
 }
 
 func (n *Inode9) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
-	newf, _, err := n.root.Walk(n.path)
+	path, found := n.pathToRoot()
+	if !found {
+		return nil, syscall.EIO
+	}
+	newf, _, err := n.root.Walk(path)
 	if err != nil {
 		return nil, ErrToErrno(err)
 	}
@@ -368,10 +533,7 @@ func main() {
 	}
 	defer attachPoint.Clunk()
 
-	rootInode := &Inode9{
-		root: attachPoint,
-		path: []string{},
-	}
+	rootInode := &Inode9{root: attachPoint}
 
 	zeroSeconds := time.Duration(0)
 

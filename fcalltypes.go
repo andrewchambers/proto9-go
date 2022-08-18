@@ -279,7 +279,7 @@ type LSetAttr struct {
 	AtimeSec  uint64
 	AtimeNsec uint64
 	MtimeSec  uint64
-	MtimeSsec uint64
+	MtimeNsec uint64
 }
 
 type Tsetattr struct {

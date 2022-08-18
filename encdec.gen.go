@@ -260,7 +260,7 @@ func (v *LSetAttr) EncodedSize() uint64 {
 	sz += 8 // AtimeSec
 	sz += 8 // AtimeNsec
 	sz += 8 // MtimeSec
-	sz += 8 // MtimeSsec
+	sz += 8 // MtimeNsec
 	return sz
 }
 
@@ -298,7 +298,7 @@ func (v *LSetAttr) Encode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	err = encodeUint64(b, v.MtimeSsec)
+	err = encodeUint64(b, v.MtimeNsec)
 	if err != nil {
 		return err
 	}
@@ -339,7 +339,7 @@ func (v *LSetAttr) Decode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	v.MtimeSsec, err = decodeUint64(b)
+	v.MtimeNsec, err = decodeUint64(b)
 	if err != nil {
 		return err
 	}
