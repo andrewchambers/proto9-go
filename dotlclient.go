@@ -199,7 +199,7 @@ func (f *ClientDotLFile) Fsync() error {
 	}
 }
 
-func (f *ClientDotLFile) Read(offset uint64, buf []byte) (int, error) {
+func (f *ClientDotLFile) Read(offset uint64, buf []byte) (uint32, error) {
 	if uint32(len(buf)) > (f.Client.Msize() - IOHDRSZ) {
 		buf = buf[:int(f.Client.Msize()-IOHDRSZ)]
 	}
@@ -218,7 +218,7 @@ func (f *ClientDotLFile) Read(offset uint64, buf []byte) (int, error) {
 		}
 		buf = buf[:len(fc.Data)]
 		copy(buf, fc.Data)
-		return len(fc.Data), nil
+		return uint32(len(fc.Data)), nil
 	case *Rlerror:
 		return 0, fc
 	default:
@@ -226,7 +226,7 @@ func (f *ClientDotLFile) Read(offset uint64, buf []byte) (int, error) {
 	}
 }
 
-func (f *ClientDotLFile) Write(offset uint64, buf []byte) (int, error) {
+func (f *ClientDotLFile) Write(offset uint64, buf []byte) (uint32, error) {
 	if uint32(len(buf)) > (f.Client.Msize() - IOHDRSZ) {
 		buf = buf[:int(f.Client.Msize()-IOHDRSZ)]
 	}
@@ -240,7 +240,7 @@ func (f *ClientDotLFile) Write(offset uint64, buf []byte) (int, error) {
 	}
 	switch fc := fc.(type) {
 	case *Rwrite:
-		return int(fc.Count), nil
+		return fc.Count, nil
 	case *Rlerror:
 		return 0, fc
 	default:

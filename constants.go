@@ -8,6 +8,19 @@ const (
 	READDIRHDRSZ = uint32(24)
 )
 
+// 9P2000/.U/.L Qid flags.
+const (
+	QT_DIR     = 0x80
+	QT_APPEND  = 0x40
+	QT_EXCL    = 0x20
+	QT_MOUNT   = 0x10
+	QT_AUTH    = 0x08
+	QT_TMP     = 0x04
+	QT_SYMLINK = 0x02
+	QT_LINK    = 0x01
+	QT_FILE    = 0x00
+)
+
 // 9P2000.L Getattr flags.
 const (
 	L_GETATTR_MODE   uint64 = 0x00000001

@@ -46,6 +46,13 @@ func NewClient(conn io.ReadWriteCloser, version string, msize uint32) (*Client, 
 		fids:         make(map[uint32]struct{}),
 	}
 
+	success := false
+	defer func() {
+		if !success {
+			_ = c.Close()
+		}
+	}()
+
 	err := c.writeFcall(&Tversion{
 		Tagged:  Tagged{Tag: 0xffff},
 		Msize:   c.msize,
@@ -73,6 +80,8 @@ func NewClient(conn io.ReadWriteCloser, version string, msize uint32) (*Client, 
 	c.version = rVersion.Version
 
 	go c.ReadWorker()
+
+	success = true
 	return c, nil
 }
 

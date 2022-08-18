@@ -70,7 +70,7 @@ func (v *LAttr) EncodedSize() uint64 {
 	sz += 8 // AtimeSec
 	sz += 8 // AtimeNsec
 	sz += 8 // MtimeSec
-	sz += 8 // MtimeSsec
+	sz += 8 // MtimeNsec
 	sz += 8 // CtimeSec
 	sz += 8 // CtimeNsec
 	sz += 8 // BtimeSec
@@ -134,7 +134,7 @@ func (v *LAttr) Encode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	err = encodeUint64(b, v.MtimeSsec)
+	err = encodeUint64(b, v.MtimeNsec)
 	if err != nil {
 		return err
 	}
@@ -219,7 +219,7 @@ func (v *LAttr) Decode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	v.MtimeSsec, err = decodeUint64(b)
+	v.MtimeNsec, err = decodeUint64(b)
 	if err != nil {
 		return err
 	}
@@ -340,6 +340,102 @@ func (v *LSetAttr) Decode(b *bytes.Buffer) error {
 		return err
 	}
 	v.MtimeSsec, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (v *LStatfs) EncodedSize() uint64 {
+	sz := uint64(0)
+	sz += 4 // Typ
+	sz += 4 // Bsize
+	sz += 8 // Blocks
+	sz += 8 // Bfree
+	sz += 8 // Bavail
+	sz += 8 // Files
+	sz += 8 // Ffree
+	sz += 8 // Fsid
+	sz += 4 // Namelen
+	return sz
+}
+
+func (v *LStatfs) Encode(b *bytes.Buffer) error {
+	var err error
+	err = encodeUint32(b, v.Typ)
+	if err != nil {
+		return err
+	}
+	err = encodeUint32(b, v.Bsize)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.Blocks)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.Bfree)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.Bavail)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.Files)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.Ffree)
+	if err != nil {
+		return err
+	}
+	err = encodeUint64(b, v.Fsid)
+	if err != nil {
+		return err
+	}
+	err = encodeUint32(b, v.Namelen)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (v *LStatfs) Decode(b *bytes.Buffer) error {
+	var err error
+	v.Typ, err = decodeUint32(b)
+	if err != nil {
+		return err
+	}
+	v.Bsize, err = decodeUint32(b)
+	if err != nil {
+		return err
+	}
+	v.Blocks, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.Bfree, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.Bavail, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.Files, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.Ffree, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.Fsid, err = decodeUint64(b)
+	if err != nil {
+		return err
+	}
+	v.Namelen, err = decodeUint32(b)
 	if err != nil {
 		return err
 	}
@@ -1066,15 +1162,7 @@ func (v *Rsetattr) Decode(b *bytes.Buffer) error {
 func (v *Rstatfs) EncodedSize() uint64 {
 	sz := uint64(0)
 	sz += v.Tagged.EncodedSize()
-	sz += 4 // Typ
-	sz += 4 // Bsize
-	sz += 8 // Blocks
-	sz += 8 // Bfree
-	sz += 8 // Bavail
-	sz += 8 // Files
-	sz += 8 // Ffree
-	sz += 8 // Fsid
-	sz += 4 // Namelen
+	sz += v.LStatfs.EncodedSize()
 	return sz
 }
 
@@ -1084,39 +1172,7 @@ func (v *Rstatfs) Encode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	err = encodeUint32(b, v.Typ)
-	if err != nil {
-		return err
-	}
-	err = encodeUint32(b, v.Bsize)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.Blocks)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.Bfree)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.Bavail)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.Files)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.Ffree)
-	if err != nil {
-		return err
-	}
-	err = encodeUint64(b, v.Fsid)
-	if err != nil {
-		return err
-	}
-	err = encodeUint32(b, v.Namelen)
+	err = v.LStatfs.Encode(b)
 	if err != nil {
 		return err
 	}
@@ -1129,39 +1185,7 @@ func (v *Rstatfs) Decode(b *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	v.Typ, err = decodeUint32(b)
-	if err != nil {
-		return err
-	}
-	v.Bsize, err = decodeUint32(b)
-	if err != nil {
-		return err
-	}
-	v.Blocks, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.Bfree, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.Bavail, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.Files, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.Ffree, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.Fsid, err = decodeUint64(b)
-	if err != nil {
-		return err
-	}
-	v.Namelen, err = decodeUint32(b)
+	err = v.LStatfs.Decode(b)
 	if err != nil {
 		return err
 	}

@@ -172,7 +172,7 @@ func TestClientConnect(t *testing.T) {
 	}
 }
 
-func TestDotlAttach(t *testing.T) {
+func TestDotLAttach(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 	f, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
@@ -181,7 +181,7 @@ func TestDotlAttach(t *testing.T) {
 	defer f.Clunk()
 }
 
-func TestDotlEmptyWalk(t *testing.T) {
+func TestDotLEmptyWalk(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 	f1, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
@@ -204,7 +204,7 @@ func TestDotlEmptyWalk(t *testing.T) {
 	}
 }
 
-func TestDotlWalkOne(t *testing.T) {
+func TestDotLWalkOne(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
 	err := os.MkdirAll(server.ServeDir+"/1/2/3", 0o777)
@@ -228,7 +228,7 @@ func TestDotlWalkOne(t *testing.T) {
 	}
 }
 
-func TestDotlWalkMulti(t *testing.T) {
+func TestDotLWalkMulti(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
 	err := os.MkdirAll(server.ServeDir+"/1/2/3/4/5/6/7/8/9/10/11/12/13/14", 0o777)
@@ -261,7 +261,7 @@ func TestDotlWalkMulti(t *testing.T) {
 	}
 }
 
-func TestDotlShortWalk(t *testing.T) {
+func TestDotLShortWalk(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
 	err := os.MkdirAll(server.ServeDir+"/1/2/3/4", 0o777)
@@ -288,7 +288,7 @@ func TestDotlShortWalk(t *testing.T) {
 	}
 }
 
-func TestDotlRemove(t *testing.T) {
+func TestDotLRemove(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
 	err := os.Mkdir(server.ServeDir+"/x", 0o777)
@@ -316,7 +316,7 @@ func TestDotlRemove(t *testing.T) {
 	}
 }
 
-func TestDotlRead(t *testing.T) {
+func TestDotLRead(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
 	expected, err := io.ReadAll(
@@ -353,7 +353,7 @@ func TestDotlRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != int(client.Msize()-IOHDRSZ) {
+	if n != (client.Msize() - IOHDRSZ) {
 		t.Fatalf("unexpected read count %d", n)
 	}
 
@@ -362,7 +362,7 @@ func TestDotlRead(t *testing.T) {
 	}
 }
 
-func TestDotlWrite(t *testing.T) {
+func TestDotLWrite(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
 	err := os.WriteFile(server.ServeDir+"/x", []byte("hello"), 0o777)
@@ -398,7 +398,7 @@ func TestDotlWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != int(client.Msize()-IOHDRSZ) {
+	if n != (client.Msize() - IOHDRSZ) {
 		t.Fatalf("unexpected write count %d", n)
 	}
 
@@ -412,7 +412,7 @@ func TestDotlWrite(t *testing.T) {
 	}
 }
 
-func TestDotlCreate(t *testing.T) {
+func TestDotLCreate(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
 	f, err := AttachDotL(client, server.Aname, server.Uname)
@@ -430,7 +430,7 @@ func TestDotlCreate(t *testing.T) {
 	}
 }
 
-func TestDotlGetAttr(t *testing.T) {
+func TestDotLGetAttr(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
 	f, err := AttachDotL(client, server.Aname, server.Uname)
@@ -445,7 +445,7 @@ func TestDotlGetAttr(t *testing.T) {
 	}
 }
 
-func TestDotlSetAttr(t *testing.T) {
+func TestDotLSetAttr(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
 	f, err := AttachDotL(client, server.Aname, server.Uname)
@@ -463,7 +463,7 @@ func TestDotlSetAttr(t *testing.T) {
 	}
 }
 
-func TestDotlRename(t *testing.T) {
+func TestDotLRename(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
 	f, err := AttachDotL(client, server.Aname, server.Uname)
@@ -506,7 +506,7 @@ func TestDotlRename(t *testing.T) {
 	}
 }
 
-func TestDotlMkdir(t *testing.T) {
+func TestDotLMkdir(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
 	f, err := AttachDotL(client, server.Aname, server.Uname)
@@ -526,7 +526,7 @@ func TestDotlMkdir(t *testing.T) {
 	}
 }
 
-func TestDotlStatfs(t *testing.T) {
+func TestDotLStatfs(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
 	f, err := AttachDotL(client, server.Aname, server.Uname)

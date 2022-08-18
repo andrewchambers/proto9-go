@@ -255,7 +255,7 @@ type LAttr struct {
 	AtimeSec    uint64
 	AtimeNsec   uint64
 	MtimeSec    uint64
-	MtimeSsec   uint64
+	MtimeNsec   uint64
 	CtimeSec    uint64
 	CtimeNsec   uint64
 	BtimeSec    uint64
