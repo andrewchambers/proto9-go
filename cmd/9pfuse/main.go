@@ -42,9 +42,8 @@ func StableAttrFromQid(q *proto9.Qid) fs.StableAttr {
 	}
 }
 
-func FillEntryOutFromAttr(attr *proto9.LAttr, out *fuse.EntryOut) {
+func FillFuseAttrOutFromAttr(attr *proto9.LAttr, out *fuse.Attr) {
 	out.Ino = attr.Qid.Path
-	out.Generation = uint64(attr.Qid.Version)
 	out.Size = attr.Size
 	out.Blocks = attr.Blocks
 	out.Blksize = uint32(attr.Blksize)
@@ -59,6 +58,12 @@ func FillEntryOutFromAttr(attr *proto9.LAttr, out *fuse.EntryOut) {
 	out.Owner.Uid = attr.Uid
 	out.Owner.Gid = attr.Gid
 	out.Rdev = uint32(attr.Rdev)
+}
+
+func FillFuseEntryOutFromAttr(attr *proto9.LAttr, out *fuse.EntryOut) {
+	out.Ino = attr.Qid.Path
+	out.Generation = uint64(attr.Qid.Version)
+	FillFuseAttrOutFromAttr(attr, &out.Attr)
 }
 
 func DirEntToFuseDirent(de *proto9.DirEnt) fuse.DirEntry {
@@ -136,6 +141,15 @@ type FileHandle9 struct {
 var _ = (fs.FileReader)((*FileHandle9)(nil))
 var _ = (fs.FileWriter)((*FileHandle9)(nil))
 var _ = (fs.FileReleaser)((*FileHandle9)(nil))
+var _ = (fs.FileFsyncer)((*FileHandle9)(nil))
+
+func (fh *FileHandle9) Fsync(ctx context.Context, flags uint32) syscall.Errno {
+	err := fh.file.Fsync()
+	if err != nil {
+		return ErrToErrno(err)
+	}
+	return 0
+}
 
 func (fh *FileHandle9) Read(ctx context.Context, dest []byte, off int64) (fuse.ReadResult, syscall.Errno) {
 	n, err := fh.file.Read(uint64(off), dest)
@@ -160,28 +174,105 @@ func (fh *FileHandle9) Release(ctx context.Context) syscall.Errno {
 
 type Inode9 struct {
 	fs.Inode
-	file *proto9.ClientDotLFile
+	root *proto9.ClientDotLFile
+	path []string
 }
 
+var _ = (fs.NodeGetattrer)((*Inode9)(nil))
 var _ = (fs.NodeLookuper)((*Inode9)(nil))
+var _ = (fs.NodeCreater)((*Inode9)(nil))
 var _ = (fs.NodeOpener)((*Inode9)(nil))
 var _ = (fs.NodeReaddirer)((*Inode9)(nil))
 
+func (n *Inode9) Getattr(ctx context.Context, fh fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
+	if fh != nil {
+		fh9 := fh.(*FileHandle9)
+		attr, err := fh9.file.GetAttr(proto9.L_GETATTR_ALL)
+		if err != nil {
+			return ErrToErrno(err)
+		}
+		FillFuseAttrOutFromAttr(&attr, &out.Attr)
+		return 0
+	} else {
+		f, _, err := n.root.Walk(n.path)
+		if err != nil {
+			return ErrToErrno(err)
+		}
+		defer f.Clunk()
+
+		attr, err := f.GetAttr(proto9.L_GETATTR_ALL)
+		if err != nil {
+			return ErrToErrno(err)
+		}
+		FillFuseAttrOutFromAttr(&attr, &out.Attr)
+		return 0
+	}
+
+}
+
 func (n *Inode9) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
-	newf, qids, err := n.file.Walk([]string{name})
+	path := make([]string, 0, len(n.path)+1)
+	path = append([]string{}, n.path...)
+	path = append(path, name)
+
+	f, qids, err := n.root.Walk(path)
 	if err != nil {
 		return nil, ErrToErrno(err)
 	}
-	stableAttr := StableAttrFromQid(&qids[0])
+	defer f.Clunk()
+
 	// XXX can we get away without this getattr? it seems like fuse might not
 	// strictly need it, especially since we don't do caching.
-	attr, err := newf.GetAttr(proto9.L_GETATTR_ALL)
+	attr, err := f.GetAttr(proto9.L_GETATTR_ALL)
 	if err != nil {
 		return nil, ErrToErrno(err)
 	}
-	FillEntryOutFromAttr(&attr, out)
-	newInode := n.NewInode(ctx, &Inode9{file: newf}, stableAttr)
+	FillFuseEntryOutFromAttr(&attr, out)
+
+	newInode := n.NewInode(ctx, &Inode9{root: n.root, path: path}, StableAttrFromQid(&qids[0]))
+
 	return newInode, 0
+}
+
+func (n *Inode9) Create(ctx context.Context, name string, flags uint32, mode uint32, out *fuse.EntryOut) (*fs.Inode, fs.FileHandle, uint32, syscall.Errno) {
+
+	path := make([]string, 0, len(n.path)+1)
+	path = append([]string{}, n.path...)
+	path = append(path, name)
+
+	f, _, err := n.root.Walk(path)
+	if err != nil {
+		return nil, nil, 0, ErrToErrno(err)
+	}
+
+	success := false
+	defer func() {
+		if !success {
+			_ = f.Clunk()
+		}
+	}()
+
+	var flags9 uint32
+	var mode9 uint32
+
+	flags9 = flags   // XXX convert flags?
+	mode9 = mode     // XXX convert flags?
+	gid := uint32(0) // XXX correct value?
+
+	qid, _, err := f.Create(name, flags9, mode9, gid)
+	if err != nil {
+		return nil, nil, 0, ErrToErrno(err)
+	}
+
+	attr, err := f.GetAttr(proto9.L_GETATTR_ALL)
+	if err != nil {
+		return nil, nil, 0, ErrToErrno(err)
+	}
+
+	FillFuseEntryOutFromAttr(&attr, out)
+	newInode := n.NewInode(ctx, &Inode9{root: n.root, path: path}, StableAttrFromQid(&qid))
+	success = true
+	return newInode, &FileHandle9{file: f}, fuse.FOPEN_DIRECT_IO, 0
 }
 
 func (n *Inode9) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint32, syscall.Errno) {
@@ -200,7 +291,7 @@ func (n *Inode9) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint32,
 		flags9 |= proto9.L_O_TRUNC
 	}
 
-	newf, _, err := n.file.Walk([]string{})
+	newf, _, err := n.root.Walk(n.path)
 	if err != nil {
 		return nil, 0, ErrToErrno(err)
 	}
@@ -214,15 +305,12 @@ func (n *Inode9) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint32,
 	if err != nil {
 		return nil, 0, ErrToErrno(err)
 	}
-	fh := &FileHandle9{
-		file: newf,
-	}
 	success = true
-	return fh, fuse.FOPEN_DIRECT_IO, 0
+	return &FileHandle9{file: newf}, fuse.FOPEN_DIRECT_IO, 0
 }
 
 func (n *Inode9) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
-	newf, _, err := n.file.Walk([]string{})
+	newf, _, err := n.root.Walk(n.path)
 	if err != nil {
 		return nil, ErrToErrno(err)
 	}
@@ -278,9 +366,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("unable to attach to mount: %s", err)
 	}
+	defer attachPoint.Clunk()
 
 	rootInode := &Inode9{
-		file: attachPoint,
+		root: attachPoint,
+		path: []string{},
 	}
 
 	zeroSeconds := time.Duration(0)
@@ -295,9 +385,10 @@ func main() {
 					// "direct_io",
 					// "hard_remove",
 				},
-				AllowOther:    false, // XXX option?
-				DisableXAttrs: false, // TODO implement
-				EnableLocks:   false, // TODO implement
+				AllowOther:           false, // XXX option?
+				DisableXAttrs:        false, // TODO implement
+				EnableLocks:          false, // TODO implement
+				IgnoreSecurityLabels: true,  // option?
 			},
 			EntryTimeout:    &zeroSeconds,
 			AttrTimeout:     &zeroSeconds,
