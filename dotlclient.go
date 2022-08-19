@@ -14,7 +14,7 @@ type ClientDotLFile struct {
 
 func AttachDotL(c *Client, aname string, uname string) (*ClientDotLFile, error) {
 	if c.Version() != "9P2000.L" {
-		return nil, fmt.Errorf("cannot attach to a 9P2000.L mount, protocol version %q", c.Version())
+		return nil, fmt.Errorf("cannot attach to mount, protocol version %q", c.Version())
 	}
 	fid, err := c.AcquireFid()
 	if err != nil {
