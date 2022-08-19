@@ -344,9 +344,7 @@ type Rfsync struct {
 	Tagged
 }
 
-type Tlock struct {
-	Tagged
-	Fid      uint32
+type LSetLock struct {
 	Typ      byte
 	Flags    uint32
 	Start    uint64
@@ -355,14 +353,18 @@ type Tlock struct {
 	ClientId string
 }
 
+type Tlock struct {
+	Tagged
+	Fid uint32
+	LSetLock
+}
+
 type Rlock struct {
 	Tagged
 	Status byte
 }
 
-type Tgetlock struct {
-	Tagged
-	Fid      uint32
+type LGetLock struct {
 	Typ      byte
 	Start    uint64
 	Length   uint64
@@ -370,13 +372,15 @@ type Tgetlock struct {
 	ClientId string
 }
 
+type Tgetlock struct {
+	Tagged
+	Fid uint32
+	LGetLock
+}
+
 type Rgetlock struct {
 	Tagged
-	Typ      byte
-	Start    uint64
-	Length   uint64
-	ProcId   uint32
-	ClientId string
+	LGetLock
 }
 
 type Tlink struct {

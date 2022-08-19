@@ -28,7 +28,6 @@ func ErrToErrno(err error) syscall.Errno {
 }
 
 func StableAttrFromQid(q *proto9.Qid) fs.StableAttr {
-
 	var mode uint32
 
 	// TODO more types.
@@ -145,6 +144,70 @@ var _ = (fs.FileReader)((*FileHandle9)(nil))
 var _ = (fs.FileWriter)((*FileHandle9)(nil))
 var _ = (fs.FileReleaser)((*FileHandle9)(nil))
 var _ = (fs.FileFsyncer)((*FileHandle9)(nil))
+var _ = (fs.FileSetlker)((*FileHandle9)(nil))
+var _ = (fs.FileSetlkwer)((*FileHandle9)(nil))
+
+func (fh *FileHandle9) setlck(ctx context.Context, owner uint64, lk *fuse.FileLock, flags uint32, wait bool) syscall.Errno {
+
+	/* XXX
+	if flags != 0 {
+		return syscall.ENOTSUP
+	}
+	*/
+
+	typ9 := uint8(0)
+
+	switch lk.Typ {
+	case syscall.F_RDLCK:
+		typ9 = proto9.L_LOCK_TYPE_RDLCK
+	case syscall.F_WRLCK:
+		typ9 = proto9.L_LOCK_TYPE_WRLCK
+	case syscall.F_UNLCK:
+		typ9 = proto9.L_LOCK_TYPE_UNLCK
+	default:
+		return syscall.ENOTSUP
+	}
+
+	flags9 := uint32(0)
+	if wait {
+		flags9 |= proto9.L_LOCK_FLAGS_BLOCK
+	}
+
+	for {
+		status, err := fh.file.Lock(proto9.LSetLock{
+			Typ:    typ9,
+			Flags:  flags9,
+			Start:  lk.Start,
+			Length: lk.End - lk.Start,
+			ProcId: lk.Pid,
+		})
+		if err != nil {
+			return ErrToErrno(err)
+		}
+
+		switch status {
+		case proto9.L_LOCK_SUCCESS:
+			return 0
+		case proto9.L_LOCK_BLOCKED:
+			if wait {
+				// Server doesn't seem to support blocking.
+				time.Sleep(1 * time.Second)
+				continue
+			}
+			return syscall.EAGAIN
+		default:
+			return syscall.EIO
+		}
+	}
+}
+
+func (fh *FileHandle9) Setlk(ctx context.Context, owner uint64, lk *fuse.FileLock, flags uint32) syscall.Errno {
+	return fh.setlck(ctx, owner, lk, flags, false)
+}
+
+func (fh *FileHandle9) Setlkw(ctx context.Context, owner uint64, lk *fuse.FileLock, flags uint32) syscall.Errno {
+	return fh.setlck(ctx, owner, lk, flags, true)
+}
 
 func (fh *FileHandle9) Fsync(ctx context.Context, flags uint32) syscall.Errno {
 	err := fh.file.Fsync()
@@ -187,6 +250,7 @@ var _ = (fs.NodeCreater)((*Inode9)(nil))
 var _ = (fs.NodeOpener)((*Inode9)(nil))
 var _ = (fs.NodeReaddirer)((*Inode9)(nil))
 var _ = (fs.NodeUnlinker)((*Inode9)(nil))
+var _ = (fs.NodeMkdirer)((*Inode9)(nil))
 var _ = (fs.NodeRmdirer)((*Inode9)(nil))
 var _ = (fs.NodeRenamer)((*Inode9)(nil))
 
@@ -235,6 +299,10 @@ func (n *Inode9) Getattr(ctx context.Context, fh fs.FileHandle, out *fuse.AttrOu
 		return ErrToErrno(err)
 	}
 	FillFuseAttrOutFromAttr(&attr, &out.Attr)
+	// XXX should the inode come from the qid?
+	//if out.Ino != n.StableAttr.Ino() {
+	// XXX This is a possibility due to our network fs, do we care?
+	//}
 	return 0
 
 }
@@ -386,8 +454,49 @@ func (n *Inode9) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*
 	return newInode, 0
 }
 
-func (n *Inode9) Create(ctx context.Context, name string, flags uint32, mode uint32, out *fuse.EntryOut) (*fs.Inode, fs.FileHandle, uint32, syscall.Errno) {
+func (n *Inode9) Mkdir(ctx context.Context, name string, mode uint32, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
+	path, found := n.pathToRoot()
+	if !found {
+		return nil, syscall.EIO
+	}
+	path = append(path, name)
+	// so we only need a single path load.
+	parentPath := path[:len(path)-1]
 
+	f, _, err := n.root.Walk(parentPath)
+	if err != nil {
+		return nil, ErrToErrno(err)
+	}
+	defer f.Clunk()
+
+	var mode9 uint32
+
+	mode9 = mode     // XXX convert flags?
+	gid := uint32(0) // XXX correct value?
+
+	qid, err := f.Mkdir(name, mode9, gid)
+	if err != nil {
+		return nil, ErrToErrno(err)
+	}
+
+	child, _, err := f.Walk([]string{name})
+	if err != nil {
+		return nil, ErrToErrno(err)
+	}
+	defer child.Clunk()
+
+	attr, err := child.GetAttr(proto9.L_GETATTR_ALL)
+	if err != nil {
+		return nil, ErrToErrno(err)
+	}
+	FillFuseEntryOutFromAttr(&attr, out)
+
+	newInode := n.NewInode(ctx, &Inode9{root: n.root}, StableAttrFromQid(&qid))
+	return newInode, 0
+}
+
+func (n *Inode9) Create(ctx context.Context, name string, flags uint32, mode uint32, out *fuse.EntryOut) (*fs.Inode, fs.FileHandle, uint32, syscall.Errno) {
+	success := false
 	path, found := n.pathToRoot()
 	if !found {
 		return nil, nil, 0, syscall.EIO
@@ -400,8 +509,6 @@ func (n *Inode9) Create(ctx context.Context, name string, flags uint32, mode uin
 	if err != nil {
 		return nil, nil, 0, ErrToErrno(err)
 	}
-
-	success := false
 	defer func() {
 		if !success {
 			_ = f.Clunk()
@@ -424,7 +531,6 @@ func (n *Inode9) Create(ctx context.Context, name string, flags uint32, mode uin
 	if err != nil {
 		return nil, nil, 0, ErrToErrno(err)
 	}
-
 	FillFuseEntryOutFromAttr(&attr, out)
 
 	newInode := n.NewInode(ctx, &Inode9{root: n.root}, StableAttrFromQid(&qid))
@@ -535,8 +641,6 @@ func main() {
 
 	rootInode := &Inode9{root: attachPoint}
 
-	zeroSeconds := time.Duration(0)
-
 	server, err := fs.Mount(mntDir, rootInode,
 		&fs.Options{
 			MountOptions: fuse.MountOptions{
@@ -549,13 +653,10 @@ func main() {
 				},
 				AllowOther:           false, // XXX option?
 				DisableXAttrs:        false, // TODO implement
-				EnableLocks:          false, // TODO implement
-				IgnoreSecurityLabels: true,  // option?
+				EnableLocks:          true,
+				IgnoreSecurityLabels: true, // option?
 			},
-			EntryTimeout:    &zeroSeconds,
-			AttrTimeout:     &zeroSeconds,
-			NegativeTimeout: &zeroSeconds,
-			Logger:          log.Default(),
+			Logger: log.Default(),
 		},
 	)
 

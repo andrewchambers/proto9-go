@@ -575,3 +575,46 @@ func TestDotLReadDir(t *testing.T) {
 		t.Fatalf("expected %d dir ents, but got %d", nEnts+2, len(ents))
 	}
 }
+
+func TestDotLLock(t *testing.T) {
+	client, server := NewTestDotLClient(t)
+
+	f, err := AttachDotL(client, server.Aname, server.Uname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Clunk()
+
+	err = os.WriteFile(server.ServeDir+"/x", []byte{}, 0o777)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lf, _, err := f.Walk([]string{"x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lf.Clunk()
+
+	err = lf.Open(L_O_RDWR)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := lf.Lock(
+		LSetLock{
+			Typ:      L_LOCK_TYPE_WRLCK,
+			Flags:    L_LOCK_FLAGS_BLOCK,
+			Start:    0,
+			Length:   0,
+			ProcId:   0,
+			ClientId: "",
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != L_LOCK_SUCCESS {
+		t.Fatal("expected lock success")
+	}
+}

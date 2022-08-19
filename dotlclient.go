@@ -400,3 +400,21 @@ func (f *ClientDotLFile) ReaddirAll() ([]DirEnt, error) {
 	}
 	return allEnts, nil
 }
+
+func (f *ClientDotLFile) Lock(l LSetLock) (byte, error) {
+	fc, err := f.Client.Fcall(&Tlock{
+		Fid:      f.Fid,
+		LSetLock: l,
+	})
+	if err != nil {
+		return L_LOCK_ERROR, err
+	}
+	switch fc := fc.(type) {
+	case *Rlock:
+		return fc.Status, nil
+	case *Rlerror:
+		return L_LOCK_ERROR, fc
+	default:
+		return L_LOCK_ERROR, errors.New("protocol error, expected Rlock")
+	}
+}
