@@ -330,12 +330,12 @@ func (n *Inode9) Setattr(ctx context.Context, fh fs.FileHandle, in *fuse.SetAttr
 
 	if mtime, ok := in.GetMTime(); ok {
 		setAttr.MtimeSec = uint64(mtime.Unix())
-		setAttr.MtimeNsec = uint64(mtime.UnixNano() - (mtime.Unix() * 1000_000_000))
+		setAttr.MtimeNsec = uint64(mtime.UnixNano() % 1000_000_000)
 		setAttr.Valid |= proto9.L_SETATTR_MTIME
 	}
 	if atime, ok := in.GetATime(); ok {
 		setAttr.AtimeSec = uint64(atime.Unix())
-		setAttr.AtimeNsec = uint64(atime.UnixNano() - (atime.Unix() * 1000_000_000))
+		setAttr.AtimeNsec = uint64(atime.UnixNano() % 1000_000_000)
 		setAttr.Valid |= proto9.L_SETATTR_ATIME
 	}
 	if size, ok := in.GetSize(); ok {
