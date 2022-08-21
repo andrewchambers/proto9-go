@@ -12,13 +12,13 @@ type ClientDotLFile struct {
 	clunkOnce sync.Once
 }
 
-func AttachDotL(c *Client, aname string, uname string) (*ClientDotLFile, error) {
+func AttachDotL(c *Client, aname string, uname string) (*ClientDotLFile, Qid, error) {
 	if c.Version() != "9P2000.L" {
-		return nil, fmt.Errorf("cannot attach to mount, protocol version %q", c.Version())
+		return nil, Qid{}, fmt.Errorf("cannot attach to mount, protocol version %q", c.Version())
 	}
 	fid, err := c.AcquireFid()
 	if err != nil {
-		return nil, err
+		return nil, Qid{}, err
 	}
 	success := false
 	defer func() {
@@ -36,7 +36,7 @@ func AttachDotL(c *Client, aname string, uname string) (*ClientDotLFile, error) 
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, Qid{}, err
 	}
 	switch fc := fc.(type) {
 	case *Rattach:
@@ -44,11 +44,11 @@ func AttachDotL(c *Client, aname string, uname string) (*ClientDotLFile, error) 
 		return &ClientDotLFile{
 			Client: c,
 			Fid:    fid,
-		}, nil
+		}, fc.Qid, nil
 	case *Rlerror:
-		return nil, fc
+		return nil, Qid{}, fc
 	default:
-		return nil, fmt.Errorf("protocol error, expected Rattach")
+		return nil, Qid{}, fmt.Errorf("protocol error, expected Rattach")
 	}
 }
 
