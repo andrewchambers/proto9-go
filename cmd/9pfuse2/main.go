@@ -60,6 +60,10 @@ func (i *Inode9) IncRef(n uint64) uint64 {
 	return atomic.AddUint64(&i.refs, n)
 }
 
+func (i *Inode9) RefCount() uint64 {
+	return atomic.LoadUint64(&i.refs)
+}
+
 func (i *Inode9) DecRef(n uint64) uint64 {
 	return atomic.AddUint64(&i.refs, ^(n - 1))
 }
@@ -67,7 +71,7 @@ func (i *Inode9) DecRef(n uint64) uint64 {
 type Proto9FS struct {
 	fuse.RawFileSystem
 
-	_nextNodeId uint64
+	nodeIdCounter uint64
 
 	lock sync.RWMutex
 
@@ -78,7 +82,7 @@ type Proto9FS struct {
 func NewProto9FS(rootFile *proto9.ClientDotLFile, rootQid proto9.Qid) *Proto9FS {
 	fs := &Proto9FS{
 		RawFileSystem: fuse.NewDefaultRawFileSystem(),
-		_nextNodeId:   2,
+		nodeIdCounter: 1,
 		n2i:           make(map[uint64]*Inode9),
 		p2i:           make(map[uint64]*Inode9),
 	}
@@ -97,15 +101,13 @@ func NewProto9FS(rootFile *proto9.ClientDotLFile, rootQid proto9.Qid) *Proto9FS 
 }
 
 func (fs *Proto9FS) nextNodeId() uint64 {
-	return atomic.AddUint64(&fs._nextNodeId, 1)
+	return atomic.AddUint64(&fs.nodeIdCounter, 1)
 }
 
 // A lookup request is sent by the kernel when the VFS wants to know
 // about a child inode. Many lookups calls can occur in parallel,
 // but only one call happens for each (inode, name) pair.
 func (fs *Proto9FS) Lookup(cancel <-chan struct{}, header *fuse.InHeader, name string, out *fuse.EntryOut) fuse.Status {
-
-	log.Printf("XXX")
 
 	success := false
 
@@ -131,21 +133,24 @@ func (fs *Proto9FS) Lookup(cancel <-chan struct{}, header *fuse.InHeader, name s
 	FillFuseEntryOutFromAttr(&attr, out)
 
 	fs.lock.Lock()
-	inode, reuseInode := fs.p2i[qid.Path]
-	if reuseInode {
-		out.NodeId = inode.nodeId
-		inode.IncRef(1)
-	} else {
-		out.NodeId = fs.nextNodeId()
+	inode, ok := fs.p2i[qid.Path]
+	if !ok || true {
 		inode = &Inode9{
-			qid:  qid,
-			f:    f,
-			refs: 1,
+			nodeId: fs.nextNodeId(),
+			qid:    qid,
+			f:      f,
+			refs:   1,
 		}
-		fs.n2i[out.NodeId] = inode
-		fs.p2i[qid.Path] = inode
+		fs.n2i[inode.nodeId] = inode
+		fs.p2i[inode.qid.Path] = inode
+	} else {
+		inode.IncRef(1)
 	}
 	fs.lock.Unlock()
+
+	out.NodeId = inode.nodeId
+
+	log.Printf("XXX lookup %d rc=%d", out.NodeId, inode.RefCount())
 
 	success = true
 	return fuse.OK
@@ -155,21 +160,28 @@ func (fs *Proto9FS) Lookup(cancel <-chan struct{}, header *fuse.InHeader, name s
 // longer interested in an inode.
 func (fs *Proto9FS) Forget(nodeId, nlookup uint64) {
 
-	log.Printf("YYY")
-
 	fs.lock.Lock()
 	inode := fs.n2i[nodeId]
-	n := inode.DecRef(nlookup)
-	delete(fs.n2i, nodeId)
-	if n == 0 {
-		pi, found := fs.p2i[inode.qid.Path]
-		if found && inode == pi {
+
+	if inode == nil {
+		// XXX happens due to go-fuse epoll hack.
+		fs.lock.Unlock()
+		return
+	}
+
+	rc := inode.DecRef(nlookup)
+	if rc == 0 {
+		delete(fs.n2i, nodeId)
+		pi := fs.p2i[inode.qid.Path]
+		if inode == pi {
 			delete(fs.p2i, inode.qid.Path)
 		}
 	}
 	fs.lock.Unlock()
 
-	if n == 0 {
+	log.Printf("XXX: forget nodeId=%d, rc=%d", nodeId, rc)
+
+	if rc == 0 {
 		inode.f.Clunk()
 	}
 }
@@ -228,6 +240,13 @@ func main() {
 	})
 	if err != nil {
 		log.Fatalf("unable to create fuse server: %s", err)
+	}
+
+	go server.Serve()
+
+	err = server.WaitMount()
+	if err != nil {
+		log.Fatalf("unable wait for mount: %s", err)
 	}
 
 	// Serve the file system, until unmounted by calling fusermount -u
