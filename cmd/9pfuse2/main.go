@@ -160,14 +160,13 @@ func (fs *Proto9FS) Lookup(cancel <-chan struct{}, header *fuse.InHeader, name s
 // longer interested in an inode.
 func (fs *Proto9FS) Forget(nodeId, nlookup uint64) {
 
-	fs.lock.Lock()
-	inode := fs.n2i[nodeId]
-
-	if inode == nil {
-		// XXX happens due to go-fuse epoll hack.
-		fs.lock.Unlock()
+	if nodeId == ^uint64(0) {
+		// go-fuse uses this inode for its own purposes (epoll bug fix).
 		return
 	}
+
+	fs.lock.Lock()
+	inode := fs.n2i[nodeId]
 
 	rc := inode.DecRef(nlookup)
 	if rc == 0 {

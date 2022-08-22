@@ -174,7 +174,7 @@ func TestClientConnect(t *testing.T) {
 
 func TestDotLAttach(t *testing.T) {
 	client, server := NewTestDotLClient(t)
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestDotLAttach(t *testing.T) {
 
 func TestDotLEmptyWalk(t *testing.T) {
 	client, server := NewTestDotLClient(t)
-	f1, err := AttachDotL(client, server.Aname, server.Uname)
+	f1, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestDotLWalkOne(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestDotLWalkMulti(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,7 +269,7 @@ func TestDotLShortWalk(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +296,7 @@ func TestDotLRemove(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,7 +331,7 @@ func TestDotLRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -370,7 +370,7 @@ func TestDotLWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,7 +415,7 @@ func TestDotLWrite(t *testing.T) {
 func TestDotLCreate(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,7 +433,7 @@ func TestDotLCreate(t *testing.T) {
 func TestDotLGetAttr(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -448,7 +448,7 @@ func TestDotLGetAttr(t *testing.T) {
 func TestDotLSetAttr(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -466,7 +466,7 @@ func TestDotLSetAttr(t *testing.T) {
 func TestDotLRename(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -509,7 +509,7 @@ func TestDotLRename(t *testing.T) {
 func TestDotLMkdir(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -529,7 +529,7 @@ func TestDotLMkdir(t *testing.T) {
 func TestDotLStatfs(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -545,7 +545,7 @@ func TestDotLReadDir(t *testing.T) {
 
 	client, server := NewTestDotLClient(t)
 
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -579,7 +579,7 @@ func TestDotLReadDir(t *testing.T) {
 func TestDotLLock(t *testing.T) {
 	client, server := NewTestDotLClient(t)
 
-	f, err := AttachDotL(client, server.Aname, server.Uname)
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -617,4 +617,54 @@ func TestDotLLock(t *testing.T) {
 	if status != L_LOCK_SUCCESS {
 		t.Fatal("expected lock success")
 	}
+}
+
+func TestParallelRequests(t *testing.T) {
+	client, server := NewTestDotLClient(t)
+
+	expected := []byte("hello")
+
+	err := os.WriteFile(server.ServeDir+"/x", expected, 0o777)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Clunk()
+
+	wg := &sync.WaitGroup{}
+
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			wf, _, err := f.Walk([]string{"x"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer wf.Clunk()
+
+			err = wf.Open(L_O_RDONLY)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			buf := make([]byte, len(expected), len(expected))
+			n, err := wf.Read(0, buf)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !reflect.DeepEqual(buf[:n], expected) {
+				t.Fatalf("%v\n!=\n%v", buf[:n], expected)
+			}
+
+		}()
+	}
+
+	wg.Wait()
 }

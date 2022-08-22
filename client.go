@@ -163,12 +163,6 @@ func (c *Client) acquireTag() (uint16, chan fcallResponse, error) {
 
 }
 
-func (c *Client) releaseTag(tag uint16) {
-	c.inflightTagsLock.Lock()
-	defer c.inflightTagsLock.Unlock()
-	delete(c.inflightTags, tag)
-}
-
 func (c *Client) AcquireFid() (uint32, error) {
 	c.fidsLock.Lock()
 	defer c.fidsLock.Unlock()
@@ -203,12 +197,12 @@ func (c *Client) Fcall(fc Fcall) (Fcall, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer c.releaseTag(tag)
 
 	fc.SetTag(tag)
-
 	err = c.writeFcall(fc)
 	if err != nil {
+		// If writing fails, the tag will never be released,
+		// that is ok because the connection is now dead.
 		return nil, err
 	}
 
