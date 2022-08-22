@@ -364,15 +364,12 @@ func (f *ClientDotLFile) Statfs() (LStatfs, error) {
 
 type DotLDirIter struct {
 	file   *ClientDotLFile
-	lock   sync.Mutex
 	ents   []DirEnt
 	offset uint64
 	done   bool
 }
 
 func (di *DotLDirIter) HasNext() bool {
-	di.lock.Lock()
-	defer di.lock.Unlock()
 	return !di.done
 }
 
@@ -391,8 +388,6 @@ func (di *DotLDirIter) fill() error {
 }
 
 func (di *DotLDirIter) Next() (DirEnt, error) {
-	di.lock.Lock()
-	defer di.lock.Unlock()
 
 	if di.done {
 		return DirEnt{}, io.EOF
@@ -421,6 +416,11 @@ func (di *DotLDirIter) Next() (DirEnt, error) {
 	}
 
 	return nextEnt, nil
+}
+
+func (di *DotLDirIter) Unget(ent DirEnt) {
+	di.ents = append(di.ents, ent)
+	di.done = false
 }
 
 func (f *ClientDotLFile) DirIter() *DotLDirIter {
