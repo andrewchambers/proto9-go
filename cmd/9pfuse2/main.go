@@ -185,6 +185,66 @@ func (fs *Proto9FS) Forget(nodeId, nlookup uint64) {
 	}
 }
 
+func (fs *Proto9FS) GetAttr(cancel <-chan struct{}, in *fuse.GetAttrIn, out *fuse.AttrOut) fuse.Status {
+	fs.lock.Lock()
+	inode := fs.n2i[in.NodeId]
+	fs.lock.Unlock()
+
+	attr, err := inode.f.GetAttr(proto9.L_GETATTR_ALL)
+	if err != nil {
+		return ErrToStatus(err)
+	}
+	FillFuseAttrFromAttr(&attr, &out.Attr)
+	return fuse.OK
+}
+
+func (fs *Proto9FS) SetAttr(cancel <-chan struct{}, in *fuse.SetAttrIn, out *fuse.AttrOut) fuse.Status {
+
+	fs.lock.Lock()
+	inode := fs.n2i[in.NodeId]
+	fs.lock.Unlock()
+
+	setAttr := proto9.LSetAttr{}
+
+	if mtime, ok := in.GetMTime(); ok {
+		setAttr.MtimeSec = uint64(mtime.Unix())
+		setAttr.MtimeNsec = uint64(mtime.UnixNano() % 1000_000_000)
+		setAttr.Valid |= proto9.L_SETATTR_MTIME
+	}
+	if atime, ok := in.GetATime(); ok {
+		setAttr.AtimeSec = uint64(atime.Unix())
+		setAttr.AtimeNsec = uint64(atime.UnixNano() % 1000_000_000)
+		setAttr.Valid |= proto9.L_SETATTR_ATIME
+	}
+	if size, ok := in.GetSize(); ok {
+		setAttr.Size = size
+		setAttr.Valid |= proto9.L_SETATTR_SIZE
+	}
+	if mode, ok := in.GetMode(); ok {
+		setAttr.Mode = mode
+		setAttr.Valid |= proto9.L_SETATTR_MODE
+	}
+
+	// TODO
+	// in.GetCTime()
+	// in.GetGID()
+	// in.GetUID()
+	err := inode.f.SetAttr(setAttr)
+	if err != nil {
+		return ErrToStatus(err)
+	}
+
+	// XXX a full getattr might not be necessary.
+	attr, err := inode.f.GetAttr(proto9.L_GETATTR_ALL)
+	if err != nil {
+		return ErrToStatus(err)
+	}
+	FillFuseAttrFromAttr(&attr, &out.Attr)
+
+	return fuse.OK
+}
+
+
 func usage() {
 	fmt.Printf("9pfuse [OPTS] MOUNTPOINT\n")
 	os.Exit(1)

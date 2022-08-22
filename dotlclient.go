@@ -3,6 +3,7 @@ package proto9
 import (
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 )
 
@@ -358,6 +359,73 @@ func (f *ClientDotLFile) Statfs() (LStatfs, error) {
 		return LStatfs{}, fc
 	default:
 		return LStatfs{}, errors.New("protocol error, expected Rstatfs")
+	}
+}
+
+type DotLDirIter struct {
+	file   *ClientDotLFile
+	lock   sync.Mutex
+	ents   []DirEnt
+	offset uint64
+	done   bool
+}
+
+func (di *DotLDirIter) HasNext() bool {
+	di.lock.Lock()
+	defer di.lock.Unlock()
+	return !di.done
+}
+
+func (di *DotLDirIter) fill() error {
+	ents, err := di.file.Readdir(di.offset, 0xFFFFFFFF)
+	if err != nil {
+		return err
+	}
+	di.ents = append(di.ents, ents...)
+	if len(di.ents) > 0 {
+		di.offset = di.ents[len(di.ents)-1].Offset
+	} else {
+		di.done = true
+	}
+	return nil
+}
+
+func (di *DotLDirIter) Next() (DirEnt, error) {
+	di.lock.Lock()
+	defer di.lock.Unlock()
+
+	if di.done {
+		return DirEnt{}, io.EOF
+	}
+
+	// Fill initial listing, otherwise we should always have something.
+	if len(di.ents) == 0 {
+		err := di.fill()
+		if err != nil {
+			return DirEnt{}, err
+		}
+		if di.done {
+			// Should never really happen considering . and ..
+			return DirEnt{}, io.EOF
+		}
+	}
+
+	nextEnt := di.ents[0]
+	di.ents = di.ents[1:]
+
+	if len(di.ents) == 0 {
+		err := di.fill()
+		if err != nil {
+			return nextEnt, err
+		}
+	}
+
+	return nextEnt, nil
+}
+
+func (f *ClientDotLFile) DirIter() *DotLDirIter {
+	return &DotLDirIter{
+		file: f,
 	}
 }
 

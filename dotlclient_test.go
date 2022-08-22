@@ -541,7 +541,7 @@ func TestDotLStatfs(t *testing.T) {
 	}
 }
 
-func TestDotLReadDir(t *testing.T) {
+func TestDotLReaddirAll(t *testing.T) {
 
 	client, server := NewTestDotLClient(t)
 
@@ -551,7 +551,7 @@ func TestDotLReadDir(t *testing.T) {
 	}
 	defer f.Clunk()
 
-	nEnts := 1456
+	nEnts := 512
 
 	// Create a large directory.
 	for i := 0; i < nEnts; i++ {
@@ -573,6 +573,56 @@ func TestDotLReadDir(t *testing.T) {
 
 	if len(ents) != nEnts+2 {
 		t.Fatalf("expected %d dir ents, but got %d", nEnts+2, len(ents))
+	}
+}
+
+func TestDotLDirIter(t *testing.T) {
+
+	client, server := NewTestDotLClient(t)
+
+	f, _, err := AttachDotL(client, server.Aname, server.Uname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Clunk()
+
+	nEnts := 512
+
+	// Create a large directory.
+	for i := 0; i < nEnts; i++ {
+		err := os.Mkdir(fmt.Sprintf("%s/XXXXXXXX%d", server.ServeDir, i), 0o777)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	err = f.Open(L_O_RDONLY)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	iter := f.DirIter()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ents := []DirEnt{}
+
+	for iter.HasNext() {
+		ent, err := iter.Next()
+		if err != nil {
+			t.Fatal(err)
+		}
+		ents = append(ents, ent)
+	}
+
+	if len(ents) != nEnts+2 {
+		t.Fatalf("expected %d dir ents, but got %d", nEnts+2, len(ents))
+	}
+
+	_, err = iter.Next()
+	if err != io.EOF {
+		t.Fatalf("expected EOF - got %s", err)
 	}
 }
 
