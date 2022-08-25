@@ -378,9 +378,15 @@ func (di *DotLDirIter) fill() error {
 	if err != nil {
 		return err
 	}
-	di.ents = append(di.ents, ents...)
+
+	// Reverse entries so we can pop them off in the right order.
+	for i, j := 0, len(ents)-1; i < j; i, j = i+1, j-1 {
+		ents[i], ents[j] = ents[j], ents[i]
+	}
+
+	di.ents = ents
 	if len(di.ents) > 0 {
-		di.offset = di.ents[len(di.ents)-1].Offset
+		di.offset = di.ents[0].Offset
 	} else {
 		di.done = true
 	}
@@ -399,14 +405,15 @@ func (di *DotLDirIter) Next() (DirEnt, error) {
 		if err != nil {
 			return DirEnt{}, err
 		}
-		if di.done {
-			// Should never really happen considering . and ..
-			return DirEnt{}, io.EOF
-		}
 	}
 
-	nextEnt := di.ents[0]
-	di.ents = di.ents[1:]
+	if di.done {
+		// Should never really happen considering . and ..
+		return DirEnt{}, io.EOF
+	}
+
+	nextEnt := di.ents[len(di.ents)-1]
+	di.ents = di.ents[:len(di.ents)-1]
 
 	if len(di.ents) == 0 {
 		err := di.fill()

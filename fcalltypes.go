@@ -32,6 +32,10 @@ type Qid struct {
 	Path    uint64
 }
 
+func (q *Qid) Equals(o Qid) bool {
+	return q.Typ == o.Typ && q.Version == o.Version && q.Path == o.Path
+}
+
 type Tversion struct {
 	Tagged
 	Msize   uint32

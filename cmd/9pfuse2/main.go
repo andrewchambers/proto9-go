@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/andrewchambers/proto9-go"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -63,7 +64,27 @@ type Inode9 struct {
 	nodeId uint64
 	refs   uint64
 	qid    proto9.Qid
-	f      *proto9.ClientDotLFile
+	_f     atomic.Value
+}
+
+func (i *Inode9) GetFile() (*proto9.ClientDotLFile, bool) {
+	v := i._f.Load()
+	if v == nil {
+		return nil, false
+	}
+	f := v.(*proto9.ClientDotLFile)
+	if f == nil {
+		return nil, false
+	}
+	return f, true
+}
+
+func (i *Inode9) SwapFile(f *proto9.ClientDotLFile) *proto9.ClientDotLFile {
+	v := i._f.Swap(f)
+	if v == nil {
+		return nil
+	}
+	return v.(*proto9.ClientDotLFile)
 }
 
 func (i *Inode9) IncRef(n uint64) uint64 {
@@ -88,15 +109,21 @@ type OpenFile struct {
 type Proto9FS struct {
 	fuse.RawFileSystem
 
+	server *fuse.Server
+
 	nodeIdCounter uint64
 
 	fileHandleCounter uint64
 
-	lock sync.RWMutex
+	lock sync.Mutex
 
 	n2Inode     map[uint64]*Inode9
 	p2Inode     map[uint64]*Inode9
 	fh2OpenFile map[uint64]*OpenFile
+
+	// TODO
+	// dentsLock sync.Mutex
+	// dents map[uint64]map[string]struct{}
 }
 
 func NewProto9FS(rootFile *proto9.ClientDotLFile, rootQid proto9.Qid) *Proto9FS {
@@ -107,18 +134,17 @@ func NewProto9FS(rootFile *proto9.ClientDotLFile, rootQid proto9.Qid) *Proto9FS 
 		n2Inode:           make(map[uint64]*Inode9),
 		p2Inode:           make(map[uint64]*Inode9),
 		fh2OpenFile:       make(map[uint64]*OpenFile),
+		dirEnts:           make(map[uint64]map[string]struct{}),
 	}
 
 	rootInode := &Inode9{
 		nodeId: 1,
 		refs:   1,
 		qid:    rootQid,
-		f:      rootFile,
 	}
-
+	rootInode.SwapFile(rootFile)
 	fs.n2Inode[rootInode.nodeId] = rootInode
 	fs.p2Inode[rootInode.qid.Path] = rootInode
-
 	return fs
 }
 
@@ -130,25 +156,31 @@ func (fs *Proto9FS) nextFileHandle() uint64 {
 	return atomic.AddUint64(&fs.fileHandleCounter, 1)
 }
 
+func (fs *Proto9FS) Init(server *fuse.Server) {
+	fs.server = server
+}
+
 // A lookup request is sent by the kernel when the VFS wants to know
 // about a child inode. Many lookups calls can occur in parallel,
 // but only one call happens for each (inode, name) pair.
 func (fs *Proto9FS) Lookup(cancel <-chan struct{}, header *fuse.InHeader, name string, out *fuse.EntryOut) fuse.Status {
-
-	success := false
-
 	fs.lock.Lock()
 	parent := fs.n2Inode[header.NodeId]
 	fs.lock.Unlock()
 
-	f, qids, err := parent.f.Walk([]string{name})
+	parentf, ok := parent.GetFile()
+	if !ok {
+		return fuse.EIO
+	}
+
+	f, qids, err := parentf.Walk([]string{name})
 	if err != nil {
 		return ErrToStatus(err)
 	}
 	qid := qids[0]
 	defer func() {
-		if !success {
-			f.Clunk()
+		if f != nil {
+			_ = f.Clunk()
 		}
 	}()
 
@@ -159,32 +191,51 @@ func (fs *Proto9FS) Lookup(cancel <-chan struct{}, header *fuse.InHeader, name s
 	FillFuseEntryOutFromAttr(&attr, out)
 
 	fs.lock.Lock()
+
 	inode, ok := fs.p2Inode[qid.Path]
 	if !ok {
 		inode = &Inode9{
 			nodeId: fs.nextNodeId(),
 			qid:    qid,
-			f:      f,
 			refs:   1,
 		}
+		f = inode.SwapFile(f)
 		fs.n2Inode[inode.nodeId] = inode
 		fs.p2Inode[inode.qid.Path] = inode
 	} else {
 		inode.IncRef(1)
+		// Using the new file works around the fact
+		// that diod doesn't update fids properly on rename.
+		f = inode.SwapFile(f)
 	}
 	fs.lock.Unlock()
 
 	out.NodeId = inode.nodeId
 
-	log.Printf("XXX lookup %d rc=%d", out.NodeId, inode.RefCount())
+	/*
+		// TODO
+		// The idea is to maintain a list of all the dents we have
+		// created so we can manually issue forget messages to free
+		// kernel memory.
+		fs.dentsLock.Lock()
+		names, ok := fs.dents[parent.nodeId]
+		if !ok {
+			names = make(map[string]time.Time)
+			fs.dents[parent.nodeId] = names
+		}
+		names[name] = struct{}{}
+		fs.dentsLock.Unlock()
+	*/
 
-	success = true
+	// log.Printf("XXX lookup %d rc=%d", out.NodeId, inode.RefCount())
 	return fuse.OK
 }
 
 // A forget request is sent by the kernel when it is no
 // longer interested in an inode.
 func (fs *Proto9FS) Forget(nodeId, nlookup uint64) {
+
+	// log.Printf("XXX forget %d nlookup=%d", nodeId, nlookup)
 
 	if nodeId == ^uint64(0) {
 		// go-fuse uses this inode for its own purposes (epoll bug fix).
@@ -193,7 +244,6 @@ func (fs *Proto9FS) Forget(nodeId, nlookup uint64) {
 
 	fs.lock.Lock()
 	inode := fs.n2Inode[nodeId]
-
 	rc := inode.DecRef(nlookup)
 	if rc == 0 {
 		delete(fs.n2Inode, nodeId)
@@ -205,7 +255,10 @@ func (fs *Proto9FS) Forget(nodeId, nlookup uint64) {
 	fs.lock.Unlock()
 
 	if rc == 0 {
-		_ = inode.f.Clunk()
+		f, ok := inode.GetFile()
+		if ok {
+			_ = f.Clunk()
+		}
 	}
 }
 
@@ -213,8 +266,11 @@ func (fs *Proto9FS) GetAttr(cancel <-chan struct{}, in *fuse.GetAttrIn, out *fus
 	fs.lock.Lock()
 	inode := fs.n2Inode[in.NodeId]
 	fs.lock.Unlock()
-
-	attr, err := inode.f.GetAttr(proto9.L_GETATTR_ALL)
+	f, ok := inode.GetFile()
+	if !ok {
+		return fuse.EIO
+	}
+	attr, err := f.GetAttr(proto9.L_GETATTR_ALL)
 	if err != nil {
 		return ErrToStatus(err)
 	}
@@ -253,13 +309,19 @@ func (fs *Proto9FS) SetAttr(cancel <-chan struct{}, in *fuse.SetAttrIn, out *fus
 	// in.GetCTime()
 	// in.GetGID()
 	// in.GetUID()
-	err := inode.f.SetAttr(setAttr)
+
+	f, ok := inode.GetFile()
+	if !ok {
+		return fuse.EIO
+	}
+
+	err := f.SetAttr(setAttr)
 	if err != nil {
 		return ErrToStatus(err)
 	}
 
 	// XXX a full getattr might not be necessary.
-	attr, err := inode.f.GetAttr(proto9.L_GETATTR_ALL)
+	attr, err := f.GetAttr(proto9.L_GETATTR_ALL)
 	if err != nil {
 		return ErrToStatus(err)
 	}
@@ -283,25 +345,34 @@ func openFlagsTo9(flags uint32) (uint32, bool) {
 		flags9 |= proto9.L_O_TRUNC
 	}
 
+	if flags&syscall.O_EXCL == syscall.O_TRUNC {
+		flags9 |= proto9.L_O_EXCL
+	}
+
 	// XXX more flags or errors for unsupported
 
 	return flags, true
 }
 
 func (fs *Proto9FS) Open(cancel <-chan struct{}, in *fuse.OpenIn, out *fuse.OpenOut) fuse.Status {
-	success := false
 
 	fs.lock.Lock()
 	inode := fs.n2Inode[in.NodeId]
 	fs.lock.Unlock()
 
-	f, _, err := inode.f.Walk([]string{})
+	f, ok := inode.GetFile()
+	if !ok {
+		return fuse.EIO
+	}
+
+	f, _, err := f.Walk([]string{})
 	if err != nil {
 		return ErrToStatus(err)
 	}
+
 	defer func() {
-		if !success {
-			f.Clunk()
+		if f != nil {
+			_ = f.Clunk()
 		}
 	}()
 
@@ -316,33 +387,37 @@ func (fs *Proto9FS) Open(cancel <-chan struct{}, in *fuse.OpenIn, out *fuse.Open
 	}
 
 	out.Fh = fs.nextFileHandle()
+	out.OpenFlags |= fuse.FOPEN_DIRECT_IO
 
 	fs.lock.Lock()
 	fs.fh2OpenFile[out.Fh] = &OpenFile{
 		inode: inode,
 		f:     f,
 	}
+	f = nil
 	fs.lock.Unlock()
 
-	success = true
-	out.OpenFlags |= fuse.FOPEN_DIRECT_IO
 	return fuse.OK
 }
 
 func (fs *Proto9FS) Create(cancel <-chan struct{}, in *fuse.CreateIn, name string, out *fuse.CreateOut) fuse.Status {
-	success := false
 
 	fs.lock.Lock()
 	inode := fs.n2Inode[in.NodeId]
 	fs.lock.Unlock()
 
-	f, _, err := inode.f.Walk([]string{})
+	f, ok := inode.GetFile()
+	if !ok {
+		return fuse.EIO
+	}
+
+	f, _, err := f.Walk([]string{})
 	if err != nil {
 		return ErrToStatus(err)
 	}
 	defer func() {
-		if !success {
-			f.Clunk()
+		if f != nil {
+			_ = f.Clunk()
 		}
 	}()
 
@@ -351,22 +426,64 @@ func (fs *Proto9FS) Create(cancel <-chan struct{}, in *fuse.CreateIn, name strin
 		return fuse.ENOTSUP
 	}
 
-	_, _, err = f.Create(name, flags9, in.Mode, in.Caller.Gid)
+	qid, _, err := f.Create(name, flags9, in.Mode, in.Caller.Gid)
 	if err != nil {
 		return ErrToStatus(err)
 	}
 
+	inodef, _, err := f.Walk([]string{})
+	if err != nil {
+		return ErrToStatus(err)
+	}
+
+	newInode := &Inode9{
+		nodeId: fs.nextNodeId(),
+		qid:    qid,
+		refs:   1,
+	}
+	newInode.SwapFile(inodef)
+
+	out.NodeId = newInode.nodeId
+	out.Ino = newInode.qid.Path
+	out.Generation = uint64(newInode.qid.Version)
+	out.Mode = qidToMode(&newInode.qid)
+	out.OpenFlags |= fuse.FOPEN_DIRECT_IO
 	out.Fh = fs.nextFileHandle()
 
 	fs.lock.Lock()
+	fs.n2Inode[newInode.nodeId] = newInode
+	fs.p2Inode[newInode.qid.Path] = newInode
 	fs.fh2OpenFile[out.Fh] = &OpenFile{
 		inode: inode,
 		f:     f,
 	}
+	f = nil
 	fs.lock.Unlock()
 
-	out.OpenFlags |= fuse.FOPEN_DIRECT_IO
-	success = true
+	return fuse.OK
+}
+
+func (fs *Proto9FS) Rename(cancel <-chan struct{}, in *fuse.RenameIn, oldName string, newName string) fuse.Status {
+	fs.lock.Lock()
+	parentInode := fs.n2Inode[in.NodeId]
+	fs.lock.Unlock()
+
+	parentf, ok := parentInode.GetFile()
+	if !ok {
+		return fuse.EIO
+	}
+
+	f, _, err := parentf.Walk([]string{oldName})
+	if err != nil {
+		return ErrToStatus(err)
+	}
+	defer f.Clunk()
+
+	err = f.Rename(parentf, newName)
+	if err != nil {
+		return ErrToStatus(err)
+	}
+
 	return fuse.OK
 }
 
@@ -394,6 +511,66 @@ func (fs *Proto9FS) Write(cancel <-chan struct{}, in *fuse.WriteIn, buf []byte) 
 	return n, fuse.OK
 }
 
+func (fs *Proto9FS) setLk(cancel <-chan struct{}, in *fuse.LkIn, wait bool) fuse.Status {
+
+	fs.lock.Lock()
+	f := fs.fh2OpenFile[in.Fh]
+	fs.lock.Unlock()
+
+	typ9 := uint8(0)
+
+	switch in.Lk.Typ {
+	case syscall.F_RDLCK:
+		typ9 = proto9.L_LOCK_TYPE_RDLCK
+	case syscall.F_WRLCK:
+		typ9 = proto9.L_LOCK_TYPE_WRLCK
+	case syscall.F_UNLCK:
+		typ9 = proto9.L_LOCK_TYPE_UNLCK
+	default:
+		return fuse.ENOTSUP
+	}
+
+	flags9 := uint32(0)
+	if wait {
+		flags9 |= proto9.L_LOCK_FLAGS_BLOCK
+	}
+
+	for {
+		status, err := f.f.Lock(proto9.LSetLock{
+			Typ:    typ9,
+			Flags:  flags9,
+			Start:  in.Lk.Start,
+			Length: in.Lk.End - in.Lk.Start,
+			ProcId: in.Lk.Pid,
+		})
+		if err != nil {
+			return ErrToStatus(err)
+		}
+
+		switch status {
+		case proto9.L_LOCK_SUCCESS:
+			return 0
+		case proto9.L_LOCK_BLOCKED:
+			if wait {
+				// Server doesn't seem to support blocking.
+				time.Sleep(1 * time.Second)
+				continue
+			}
+			return fuse.EAGAIN
+		default:
+			return fuse.EIO
+		}
+	}
+}
+
+func (fs *Proto9FS) SetLk(cancel <-chan struct{}, in *fuse.LkIn) fuse.Status {
+	return fs.setLk(cancel, in, true)
+}
+
+func (fs *Proto9FS) SetLkw(cancel <-chan struct{}, in *fuse.LkIn) fuse.Status {
+	return fs.setLk(cancel, in, true)
+}
+
 func (fs *Proto9FS) Release(cancel <-chan struct{}, in *fuse.ReleaseIn) {
 	fs.lock.Lock()
 	f := fs.fh2OpenFile[in.Fh]
@@ -403,20 +580,87 @@ func (fs *Proto9FS) Release(cancel <-chan struct{}, in *fuse.ReleaseIn) {
 	return
 }
 
+func (fs *Proto9FS) remove(cancel <-chan struct{}, header *fuse.InHeader, name string) fuse.Status {
+	fs.lock.Lock()
+	inode := fs.n2Inode[header.NodeId]
+	fs.lock.Unlock()
+
+	f, ok := inode.GetFile()
+	if !ok {
+		return fuse.EIO
+	}
+
+	f, _, err := f.Walk([]string{name})
+	if err != nil {
+		return ErrToStatus(err)
+	}
+
+	err = f.Remove()
+	if err != nil {
+		return ErrToStatus(err)
+	}
+	return fuse.OK
+}
+func (fs *Proto9FS) Unlink(cancel <-chan struct{}, header *fuse.InHeader, name string) fuse.Status {
+	return fs.remove(cancel, header, name)
+}
+
+func (fs *Proto9FS) Rmdir(cancel <-chan struct{}, header *fuse.InHeader, name string) fuse.Status {
+	return fs.remove(cancel, header, name)
+}
+
+func (fs *Proto9FS) Mkdir(cancel <-chan struct{}, header *fuse.MkdirIn, name string, out *fuse.EntryOut) fuse.Status {
+
+	fs.lock.Lock()
+	parentInode := fs.n2Inode[header.NodeId]
+	fs.lock.Unlock()
+
+	parentf, ok := parentInode.GetFile()
+	if !ok {
+		return fuse.EIO
+	}
+
+	qid, err := parentf.Mkdir(name, header.Mode, header.InHeader.Caller.Gid)
+	if err != nil {
+		return ErrToStatus(err)
+	}
+
+	newInode := &Inode9{
+		nodeId: fs.nextNodeId(),
+		qid:    qid,
+		refs:   1,
+	}
+	out.NodeId = newInode.nodeId
+	out.Ino = newInode.qid.Path
+	out.Generation = uint64(newInode.qid.Version)
+	out.Mode = qidToMode(&newInode.qid)
+
+	fs.lock.Lock()
+	fs.n2Inode[newInode.nodeId] = newInode
+	fs.p2Inode[newInode.qid.Path] = newInode
+	fs.lock.Unlock()
+
+	return fuse.OK
+}
+
 func (fs *Proto9FS) OpenDir(cancel <-chan struct{}, in *fuse.OpenIn, out *fuse.OpenOut) fuse.Status {
-	success := false
 
 	fs.lock.Lock()
 	inode := fs.n2Inode[in.NodeId]
 	fs.lock.Unlock()
 
-	dirf, _, err := inode.f.Walk([]string{})
+	dirf, ok := inode.GetFile()
+	if !ok {
+		return fuse.EIO
+	}
+
+	dirf, _, err := dirf.Walk([]string{})
 	if err != nil {
 		return ErrToStatus(err)
 	}
 	defer func() {
-		if !success {
-			dirf.Clunk()
+		if dirf != nil {
+			_ = dirf.Clunk()
 		}
 	}()
 
@@ -431,6 +675,7 @@ func (fs *Proto9FS) OpenDir(cancel <-chan struct{}, in *fuse.OpenIn, out *fuse.O
 	}
 
 	out.Fh = fs.nextFileHandle()
+	out.OpenFlags |= fuse.FOPEN_DIRECT_IO
 
 	fs.lock.Lock()
 	fs.fh2OpenFile[out.Fh] = &OpenFile{
@@ -438,11 +683,9 @@ func (fs *Proto9FS) OpenDir(cancel <-chan struct{}, in *fuse.OpenIn, out *fuse.O
 		f:     dirf,
 		di:    dirf.DirIter(),
 	}
+	dirf = nil
 	fs.lock.Unlock()
 
-	out.OpenFlags |= fuse.FOPEN_DIRECT_IO
-
-	success = true
 	return fuse.OK
 }
 
@@ -478,7 +721,12 @@ func (fs *Proto9FS) readDir(cancel <-chan struct{}, in *fuse.ReadIn, out *fuse.D
 					wnames = append(wnames, ent.Name)
 				}
 
-				f, _, err := d.inode.f.Walk(wnames)
+				dirf, ok := d.inode.GetFile()
+				if !ok {
+					return fuse.EIO
+				}
+
+				f, _, err := dirf.Walk(wnames)
 				if err != nil {
 					return ErrToStatus(err)
 				}
@@ -491,10 +739,12 @@ func (fs *Proto9FS) readDir(cancel <-chan struct{}, in *fuse.ReadIn, out *fuse.D
 				FillFuseEntryOutFromAttr(&attr, entryOut)
 			} else {
 				d.di.Unget(ent)
+				break
 			}
 		} else {
 			if !out.AddDirEntry(fuseDirEnt) {
 				d.di.Unget(ent)
+				break
 			}
 		}
 	}
